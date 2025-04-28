@@ -1,0 +1,168 @@
+Full Technical Documentation
+
+Project Overview
+
+App Name: PIDocs
+Tech Stack: 
+- Frontend: React Native (Expo) with TypeScript
+- Backend: Firebase (Authentication, Firestore, Storage)
+- State Management: React Context API
+- UI Components: React Native Paper, Custom Components
+- Navigation: React Navigation
+- Local Storage: AsyncStorage
+- Security: Firebase Authentication, Biometric Authentication
+- Development: Expo Development Client
+- Containerization: Docker
+
+Purpose: Securely store, organize, and optionally remind about personal document expirations, with customizable categories and metadata.
+Target Platform: iOS, Android
+
+Design System:
+- Color Scheme: Apple-inspired design system with light and dark mode support
+- Typography: System fonts with consistent sizing and weights
+- Components: Reusable UI components with consistent styling
+- Icons: Material Icons with consistent sizing and colors
+- Layout: Clean, modern interface with proper spacing and hierarchy
+
+Database Structure
+
+Firebase Implementation:
+- Authentication: Email/Password authentication with Firebase Auth
+- Firestore: Document storage with collections for users, documents, and categories
+- Storage: Firebase Storage for document file storage
+
+Collections:
+- users: User profiles and preferences
+- documents: Document metadata and references
+- categories: Document categories and metadata templates
+
+Security Rules:
+- User-based access control
+- Document-level permissions
+- Secure file storage with Firebase Storage rules
+
+App Structure (Folders and Files)
+
+App Folder Structure:
+
+Screens:
+- Home (Main Screen)
+- Category List Screen
+- Document List Screen
+- Document Detail Screen
+- Add Document Screen
+- Settings Screen
+
+Components:
+- CardView
+- InputField
+- FileUploader
+- MetadataFieldRenderer
+- ModalDialog
+
+Contexts:
+- UserContext (Firebase Auth integration)
+- DocumentContext (Firestore integration)
+
+Services:
+- FirebaseService (handles Firebase operations)
+- LocalStorageService (handles local storage functionality)
+- ReminderService (handles notification reminders)
+
+Utils:
+- Validation
+- DateHelpers
+- Firebase Helpers
+
+Navigation:
+- StackNavigation
+- TabNavigation
+
+Development Setup
+
+Prerequisites:
+- Node.js (v18 or higher)
+- npm or yarn
+- Expo CLI
+- Firebase account
+- Docker (optional)
+
+Local Development:
+1. Clone the repository
+2. Install dependencies: `npm install` or `yarn install`
+3. Configure Firebase:
+   - Create a Firebase project
+   - Enable Authentication (Email/Password)
+   - Set up Firestore and Storage
+   - Add Firebase configuration to `config/firebase.ts`
+4. Start development server: `npx expo start`
+
+Docker Setup:
+
+1. Build the Docker image:
+```bash
+docker build -t pidocs .
+```
+
+2. Run the container:
+```bash
+docker run -p 19000:19000 -p 19001:19001 -p 19002:19002 pidocs
+```
+
+3. Development with Docker:
+```bash
+# Development mode
+docker-compose up dev
+
+# Production mode
+docker-compose up prod
+```
+
+Docker Compose Configuration:
+```yaml
+version: '3.8'
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+
+  prod:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "19000:19000"
+    environment:
+      - NODE_ENV=production
+```
+
+Security Considerations:
+- Document data is stored securely using Firebase Security Rules
+- User authentication via Firebase Auth
+- Biometric authentication for sensitive operations
+- Data encryption at rest and in transit
+- Regular security audits and updates
+
+Deployment:
+1. Build the Expo app: `expo build:android` or `expo build:ios`
+2. Configure Firebase for production
+3. Update environment variables
+4. Deploy to app stores
+
+Maintenance:
+- Regular dependency updates
+- Security patches
+- Performance monitoring
+- User feedback integration
