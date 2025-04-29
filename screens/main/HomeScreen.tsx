@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
@@ -32,7 +32,7 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
         backgroundColor: theme.background,
     },
     header: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingTop: (StatusBar.currentHeight || 0) + spacing.lg,
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.lg,
         backgroundColor: theme.surface,
@@ -99,6 +99,7 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
     },
     overview: {
         marginTop: spacing.lg,
+        marginBottom: spacing.xl * 2,
         backgroundColor: theme.surface,
         borderRadius: 20,
         padding: spacing.lg,
@@ -106,11 +107,21 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
         borderWidth: 1,
         borderColor: theme.surfaceVariant,
     },
+    overviewHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: spacing.lg,
+    },
     overviewTitle: {
         fontSize: 20,
         fontWeight: '600',
         color: theme.onSurface,
-        marginBottom: spacing.lg,
+    },
+    overviewSubtitle: {
+        fontSize: 14,
+        color: theme.onSurfaceVariant,
+        marginTop: spacing.xs,
     },
     statsGrid: {
         flexDirection: 'row',
@@ -183,6 +194,18 @@ const HomeScreen: React.FC = () => {
         };
     }, [documents]);
 
+    const getExpiringPercentage = () => {
+        if (!stats.total) return 0;
+        return Math.round((stats.expiring / stats.total) * 100);
+    };
+
+    const getExpiringColor = () => {
+        const percentage = getExpiringPercentage();
+        if (percentage > 30) return theme.colors.error;
+        if (percentage > 10) return theme.colors.tertiary;
+        return theme.colors.primary;
+    };
+
     if (loading) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -225,7 +248,11 @@ const HomeScreen: React.FC = () => {
                 </View>
             </View>
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}
+                showsVerticalScrollIndicator={false}
+            >
                 <View style={styles.grid}>
                     <TouchableOpacity
                         style={styles.gridItem}
@@ -281,23 +308,48 @@ const HomeScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.overview}>
-                    <Text style={styles.overviewTitle}>Overview</Text>
+                    <View style={styles.overviewHeader}>
+                        <View>
+                            <Text style={styles.overviewTitle}>Overview</Text>
+                            <Text style={styles.overviewSubtitle}>Your document status</Text>
+                        </View>
+                        <MaterialCommunityIcons
+                            name="chart-line"
+                            size={24}
+                            color={theme.colors.primary}
+                        />
+                    </View>
+
                     <View style={styles.statsGrid}>
                         <View style={styles.statItem}>
-                            <MaterialCommunityIcons name="folder" size={24} color={theme.colors.primary} />
+                            <MaterialCommunityIcons
+                                name="folder"
+                                size={24}
+                                color={theme.colors.primary}
+                            />
                             <Text style={styles.statValue}>{stats.total}</Text>
                             <Text style={styles.statLabel}>Total</Text>
                         </View>
 
                         <View style={styles.statItem}>
-                            <MaterialCommunityIcons name="check-circle" size={24} color={theme.colors.primary} />
+                            <MaterialCommunityIcons
+                                name="check-circle"
+                                size={24}
+                                color={theme.colors.primary}
+                            />
                             <Text style={styles.statValue}>{stats.active}</Text>
                             <Text style={styles.statLabel}>Active</Text>
                         </View>
 
                         <View style={styles.statItem}>
-                            <MaterialCommunityIcons name="alert-circle" size={24} color={theme.colors.primary} />
-                            <Text style={styles.statValue}>{stats.expiring}</Text>
+                            <MaterialCommunityIcons
+                                name="alert-circle"
+                                size={24}
+                                color={getExpiringColor()}
+                            />
+                            <Text style={[styles.statValue, { color: getExpiringColor() }]}>
+                                {stats.expiring}
+                            </Text>
                             <Text style={styles.statLabel}>Expiring</Text>
                         </View>
                     </View>

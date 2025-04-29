@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, StatusBar } from 'react-native';
 import { Text, useTheme, IconButton } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,7 +17,7 @@ const BackupScreen: React.FC = () => {
         header: {
             flexDirection: 'row',
             alignItems: 'center',
-            paddingTop: Platform.OS === 'ios' ? 60 : 40,
+            paddingTop: (StatusBar.currentHeight || 0) + spacing.md,
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.md,
         },

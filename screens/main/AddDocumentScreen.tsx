@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal as RNModal, Dimensions, Animated } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal as RNModal, Dimensions, Animated, StatusBar } from 'react-native';
 import { Text, Card, useTheme, Button, TextInput, Portal, Modal, ActivityIndicator, IconButton } from 'react-native-paper';
 import { spacing, typography, shadows } from '../../theme/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -584,7 +584,9 @@ const AddDocumentScreen: React.FC = () => {
             flex: 1,
         },
         header: {
-            padding: spacing.lg,
+            paddingTop: (StatusBar.currentHeight || 0) + spacing.lg,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.lg,
             borderBottomWidth: 1,
             borderBottomColor: '#E5E5EA',
         },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform, FlatList, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Platform, FlatList, Image, TouchableOpacity, Dimensions, StatusBar } from 'react-native';
 import { Text, useTheme, IconButton, Card, FAB } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { spacing, typography } from '../../theme/theme';
@@ -44,7 +44,7 @@ const CategoryScreen: React.FC = () => {
         header: {
             flexDirection: 'row',
             alignItems: 'center',
-            paddingTop: Platform.OS === 'ios' ? 60 : 40,
+            paddingTop: (StatusBar.currentHeight || 0) + spacing.md,
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.md,
         },
