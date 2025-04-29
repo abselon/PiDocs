@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal as RNModal } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal as RNModal, Dimensions, Animated } from 'react-native';
 import { Text, Card, useTheme, Button, TextInput, Portal, Modal, ActivityIndicator, IconButton } from 'react-native-paper';
 import { spacing, typography, shadows } from '../../theme/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -55,6 +55,7 @@ const AddDocumentScreen: React.FC = () => {
         name: '',
         icon: 'file-document' as keyof typeof MaterialCommunityIcons.glyphMap,
     });
+    const scaleAnim = useRef(new Animated.Value(1)).current;
 
     console.log('AddDocumentScreen: Current user:', user ? {
         uid: user.uid,
@@ -263,54 +264,108 @@ const AddDocumentScreen: React.FC = () => {
         );
     };
 
-    const renderCategoryStep = () => (
-        <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: theme.colors.onSurface }]}>
-                Choose Category
-            </Text>
-            <View style={styles.categoryGrid}>
-                {categories.map(category => (
-                    <TouchableOpacity
-                        key={category.id}
-                        style={[
-                            styles.categoryCard,
-                            {
-                                backgroundColor: selectedCategory === category.id
-                                    ? theme.colors.primary + '20'
-                                    : theme.colors.surface,
-                                borderColor: selectedCategory === category.id
-                                    ? theme.colors.primary
-                                    : 'transparent',
-                            }
-                        ]}
-                        onPress={() => setSelectedCategory(category.id)}
-                    >
-                        <MaterialCommunityIcons
-                            name={category.icon}
-                            size={24}
-                            color={theme.colors.primary}
-                        />
-                        <Text style={[styles.categoryName, { color: theme.colors.onSurface }]}>
-                            {category.name}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                    style={[styles.categoryCard, { backgroundColor: theme.colors.surface }]}
-                    onPress={() => setShowCategoryModal(true)}
-                >
-                    <MaterialCommunityIcons
-                        name="folder-plus"
-                        size={24}
-                        color={theme.colors.primary}
-                    />
-                    <Text style={[styles.categoryName, { color: theme.colors.primary }]}>
-                        New Category
-                    </Text>
-                </TouchableOpacity>
+    const handlePress = (categoryId: string) => {
+        Animated.sequence([
+            Animated.timing(scaleAnim, {
+                toValue: 0.95,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start(() => {
+            setSelectedCategory(categoryId);
+        });
+    };
+
+    const renderCategoryStep = () => {
+        const screenWidth = Dimensions.get('window').width;
+        const isSmallScreen = screenWidth < 600;
+        const itemWidth = isSmallScreen ? '48%' : '30%';
+
+        return (
+            <View style={styles.stepContent}>
+                <Text style={[styles.stepTitle, { color: theme.colors.onSurface }]}>
+                    Choose Category
+                </Text>
+                <View style={styles.categoryGrid}>
+                    <View style={[styles.categoryItem, { flexBasis: itemWidth }]}>
+                        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.categoryCard,
+                                    {
+                                        backgroundColor: theme.colors.surface,
+                                    }
+                                ]}
+                                onPress={() => {
+                                    Animated.sequence([
+                                        Animated.timing(scaleAnim, {
+                                            toValue: 0.95,
+                                            duration: 100,
+                                            useNativeDriver: true,
+                                        }),
+                                        Animated.timing(scaleAnim, {
+                                            toValue: 1,
+                                            duration: 100,
+                                            useNativeDriver: true,
+                                        }),
+                                    ]).start(() => {
+                                        setShowCategoryModal(true);
+                                    });
+                                }}
+                            >
+                                <View style={styles.categoryIconContainer}>
+                                    <MaterialCommunityIcons
+                                        name="folder-plus"
+                                        size={32}
+                                        color={theme.colors.primary}
+                                    />
+                                </View>
+                                <Text style={[styles.categoryName, { color: theme.colors.primary }]} numberOfLines={2}>
+                                    New Category
+                                </Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    </View>
+                    {categories.map(category => (
+                        <View key={category.id} style={[styles.categoryItem, { flexBasis: itemWidth }]}>
+                            <Animated.View style={{ transform: [{ scale: selectedCategory === category.id ? scaleAnim : 1 }] }}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.categoryCard,
+                                        {
+                                            backgroundColor: selectedCategory === category.id
+                                                ? theme.colors.primary + '20'
+                                                : theme.colors.surface,
+                                            borderColor: selectedCategory === category.id
+                                                ? theme.colors.primary
+                                                : 'transparent',
+                                        }
+                                    ]}
+                                    onPress={() => handlePress(category.id)}
+                                >
+                                    <View style={styles.categoryIconContainer}>
+                                        <MaterialCommunityIcons
+                                            name={category.icon}
+                                            size={32}
+                                            color={theme.colors.primary}
+                                        />
+                                    </View>
+                                    <Text style={[styles.categoryName, { color: theme.colors.onSurface }]} numberOfLines={2}>
+                                        {category.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            </Animated.View>
+                        </View>
+                    ))}
+                </View>
             </View>
-        </View>
-    );
+        );
+    };
 
     const renderUploadStep = () => (
         <View style={styles.stepContent}>
@@ -346,10 +401,10 @@ const AddDocumentScreen: React.FC = () => {
                 <Modal
                     visible={showDatePicker}
                     onDismiss={() => setShowDatePicker(false)}
-                    contentContainerStyle={[styles.datePickerModal, { backgroundColor: theme.colors.surface }]}
+                    contentContainerStyle={styles.datePickerModal}
                 >
                     <View style={styles.datePickerHeader}>
-                        <Text style={[styles.datePickerTitle, { color: theme.colors.onSurface }]}>
+                        <Text style={styles.datePickerTitle}>
                             Select Expiry Date
                         </Text>
                         <IconButton
@@ -377,7 +432,7 @@ const AddDocumentScreen: React.FC = () => {
                         onDateChange={(date: Moment | null) => {
                             if (date) {
                                 try {
-                                    const timestamp = date._d ? date._d.getTime() : date.valueOf();
+                                    const timestamp = date.toDate().getTime();
                                     const selectedDate = new Date(timestamp);
                                     const now = new Date();
 
@@ -394,6 +449,7 @@ const AddDocumentScreen: React.FC = () => {
                                 }
                             }
                         }}
+                        style={styles.calendarStyle}
                     />
                 </Modal>
             </Portal>
@@ -562,21 +618,38 @@ const AddDocumentScreen: React.FC = () => {
         categoryGrid: {
             flexDirection: 'row',
             flexWrap: 'wrap',
-            marginHorizontal: -spacing.xs,
+            justifyContent: 'space-between',
+            paddingHorizontal: spacing.lg,
+            marginTop: spacing.md,
+        },
+        categoryItem: {
+            marginBottom: spacing.md,
         },
         categoryCard: {
-            width: '48%',
-            margin: spacing.xs,
-            padding: spacing.md,
-            borderRadius: 12,
+            padding: spacing.lg,
+            borderRadius: 16,
             borderWidth: 1,
             alignItems: 'center',
+            justifyContent: 'center',
+            flexGrow: 1,
+            minHeight: 140,
             ...shadows.small,
+        },
+        categoryIconContainer: {
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: theme.colors.surfaceVariant,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: spacing.md,
         },
         categoryName: {
             ...typography.body,
-            marginTop: spacing.sm,
             textAlign: 'center',
+            fontWeight: '500',
+            fontSize: 14,
+            paddingHorizontal: spacing.xs,
         },
         uploadCard: {
             padding: spacing.xl,
@@ -656,8 +729,11 @@ const AddDocumentScreen: React.FC = () => {
         datePickerModal: {
             margin: spacing.lg,
             padding: spacing.lg,
-            borderRadius: 12,
+            borderRadius: 16,
             maxHeight: '80%',
+            maxWidth: 400,
+            alignSelf: 'center',
+            backgroundColor: theme.colors.surface,
         },
         datePickerHeader: {
             flexDirection: 'row',
@@ -666,8 +742,14 @@ const AddDocumentScreen: React.FC = () => {
             marginBottom: spacing.md,
         },
         datePickerTitle: {
-            fontSize: 20,
-            fontWeight: '600',
+            fontSize: 18,
+            fontWeight: 'bold',
+            textAlign: 'center',
+            color: theme.colors.onSurface,
+        },
+        calendarStyle: {
+            paddingTop: spacing.sm,
+            paddingBottom: spacing.lg,
         },
         datePickerButton: {
             borderWidth: 1,
