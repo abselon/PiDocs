@@ -117,20 +117,20 @@ const DocumentDetailsScreen: React.FC = () => {
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [4, 3],
-                quality: 0.8, // Reduce quality to help with size
+                quality: 0.8,
                 base64: true,
             });
 
-            if (!result.canceled && result.assets[0].base64) {
+            if (!result.canceled && result.assets[0]) {
                 // Check file size (2MB limit)
-                const base64Size = result.assets[0].base64.length * 0.75; // Approximate size in bytes
+                const base64Size = result.assets[0].base64!.length * 0.75; // Approximate size in bytes
                 const MAX_SIZE = 2 * 1024 * 1024; // 2MB in bytes
 
                 if (base64Size > MAX_SIZE) {
-                    Alert.alert(
+                    showAlert(
                         'File Too Large',
-                        'The selected image is too large. Please choose an image smaller than 2MB.',
-                        [{ text: 'OK' }]
+                        'The selected file is too large. Please choose a file smaller than 2MB.',
+                        'warning'
                     );
                     return;
                 }
@@ -143,13 +143,21 @@ const DocumentDetailsScreen: React.FC = () => {
                         fileType: 'image/jpeg'
                     });
                 } catch (error) {
-                    Alert.alert('Error', 'Failed to update image. Please try again.');
+                    showAlert(
+                        'Error',
+                        'Failed to update file. Please try again.',
+                        'error'
+                    );
                 } finally {
                     setIsUpdating(false);
                 }
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to pick image. Please try again.');
+            showAlert(
+                'Error',
+                'Failed to pick file. Please try again.',
+                'error'
+            );
         }
     };
 
@@ -284,6 +292,25 @@ const DocumentDetailsScreen: React.FC = () => {
             marginTop: spacing.sm,
             ...typography.body,
         },
+        previewImage: {
+            width: '100%',
+            height: 200,
+            backgroundColor: theme.colors.surfaceVariant,
+            borderRadius: 8,
+        },
+        fileIconContainer: {
+            width: '100%',
+            height: 200,
+            backgroundColor: theme.colors.surfaceVariant,
+            borderRadius: 8,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        fileTypeText: {
+            marginTop: spacing.sm,
+            color: theme.colors.onSurfaceVariant,
+            fontSize: 14,
+        },
     });
 
     // Add debounced update function
@@ -349,6 +376,55 @@ const DocumentDetailsScreen: React.FC = () => {
         }
     };
 
+    const renderFilePreview = () => {
+        if (!document?.fileData) return null;
+
+        // Make sure the base64 data has the correct prefix
+        const base64Data = document.fileData.startsWith('data:')
+            ? document.fileData
+            : `data:${document.fileType};base64,${document.fileData}`;
+
+        if (document.fileType.startsWith('image/')) {
+            return (
+                <Image
+                    source={{ uri: base64Data }}
+                    style={styles.previewImage}
+                    resizeMode="contain"
+                />
+            );
+        }
+
+        // For document files, show appropriate icons
+        return (
+            <View style={styles.fileIconContainer}>
+                <MaterialCommunityIcons
+                    name={getFileIcon(document.fileType)}
+                    size={64}
+                    color={theme.colors.primary}
+                />
+                <Text style={styles.fileTypeText}>
+                    {getFileTypeDisplay(document.fileType)}
+                </Text>
+            </View>
+        );
+    };
+
+    const getFileIcon = (fileType: string): keyof typeof MaterialCommunityIcons.glyphMap => {
+        if (fileType.startsWith('image/')) return 'file-image';
+        if (fileType.startsWith('application/pdf')) return 'file-pdf-box';
+        if (fileType.startsWith('application/msword') || fileType.includes('wordprocessingml')) return 'file-word-box';
+        if (fileType.startsWith('application/vnd.ms-excel') || fileType.includes('spreadsheetml')) return 'file-excel-box';
+        return 'file-document-outline';
+    };
+
+    const getFileTypeDisplay = (fileType: string): string => {
+        if (fileType.startsWith('image/')) return 'Image';
+        if (fileType.startsWith('application/pdf')) return 'PDF Document';
+        if (fileType.startsWith('application/msword') || fileType.includes('wordprocessingml')) return 'Word Document';
+        if (fileType.startsWith('application/vnd.ms-excel') || fileType.includes('spreadsheetml')) return 'Excel Spreadsheet';
+        return 'Document';
+    };
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -377,21 +453,7 @@ const DocumentDetailsScreen: React.FC = () => {
                             <Text style={styles.loadingText}>Updating image...</Text>
                         </View>
                     ) : null}
-                    {document?.fileData ? (
-                        <Image
-                            source={{
-                                uri: `data:${document.fileType};base64,${document.fileData.replace(/^data:.+;base64,/, '')}`
-                            }}
-                            style={styles.image}
-                            onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
-                        />
-                    ) : (
-                        <MaterialCommunityIcons
-                            name="file-document"
-                            size={80}
-                            style={styles.documentIcon}
-                        />
-                    )}
+                    {renderFilePreview()}
                 </TouchableOpacity>
 
                 <Card style={styles.mainCard}>

@@ -98,11 +98,28 @@ const AddDocumentScreen: React.FC = () => {
     const pickDocument = async () => {
         try {
             const result = await DocumentPicker.getDocumentAsync({
-                type: '*/*',
+                type: [
+                    'image/*',
+                    'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                ],
                 copyToCacheDirectory: true,
             });
 
             if (!result.canceled && result.assets && result.assets[0]) {
+                // Check file size (2MB limit)
+                if (result.assets[0].size && result.assets[0].size > 2 * 1024 * 1024) {
+                    showAlert(
+                        'File Too Large',
+                        'The selected file is too large. Please choose a file smaller than 2MB.',
+                        'warning'
+                    );
+                    return;
+                }
+
                 setDocument(prev => ({
                     ...prev,
                     file: result.assets[0],
@@ -111,7 +128,11 @@ const AddDocumentScreen: React.FC = () => {
                 setCurrentStep('metadata');
             }
         } catch (err) {
-            setError('Failed to pick document');
+            showAlert(
+                'Error',
+                'Failed to pick document. Please try again.',
+                'error'
+            );
         }
     };
 
@@ -132,8 +153,7 @@ const AddDocumentScreen: React.FC = () => {
                 showAlert(
                     'Camera Access Required',
                     'PiDocs needs camera access to capture documents. Please enable camera access in your device settings.',
-                    'warning',
-                    () => navigation.goBack()
+                    'warning'
                 );
                 return;
             }
@@ -163,7 +183,7 @@ const AddDocumentScreen: React.FC = () => {
         } catch (err) {
             showAlert(
                 'Camera Error',
-                'Failed to access camera. Please try again or use the file upload option instead.',
+                'Failed to access camera. Please try again.',
                 'error'
             );
         }
@@ -468,10 +488,10 @@ const AddDocumentScreen: React.FC = () => {
                         color={theme.colors.primary}
                     />
                     <Text style={[styles.uploadText, { color: theme.colors.onSurface }]}>
-                        Upload from Files
+                        Upload File
                     </Text>
                     <Text style={[styles.uploadSubtext, { color: theme.colors.onSurfaceVariant }]}>
-                        Choose a file from your device
+                        Choose an image or document (PDF, DOC)
                     </Text>
                 </TouchableOpacity>
 
