@@ -1,13 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Timestamp } from 'firebase/firestore';
 
 export interface DocumentMetadata {
     title: string;
     description?: string;
-    expiryDate?: Date;
+    expiryDate?: Timestamp;
     categoryId: string;
     userId: string;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
     customFields?: Record<string, any>;
 }
 
@@ -20,9 +21,9 @@ export interface Document extends DocumentMetadata {
     fileSize: number;
     categoryId: string;
     userId: string;
-    createdAt: Date;
-    updatedAt: Date;
-    expiryDate?: Date;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    expiryDate?: Timestamp;
 }
 
 export interface Category {
@@ -31,8 +32,8 @@ export interface Category {
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
     description?: string;
     userId: string;
-    createdAt?: Date;
-    updatedAt?: Date;
+    createdAt?: Timestamp;
+    updatedAt?: Timestamp;
 }
 
 export type DocumentStatus = 'active' | 'expiring' | 'expired';

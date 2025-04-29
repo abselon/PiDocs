@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Category, Document } from '../../types/document';
 import CalendarPicker from 'react-native-calendar-picker';
 import { Moment } from 'moment';
+import { Timestamp } from 'firebase/firestore';
 
 type Step = 'category' | 'upload' | 'metadata' | 'reminder';
 
@@ -146,8 +147,8 @@ const AddDocumentScreen: React.FC = () => {
                 fileSize: document.file.size,
                 categoryId: selectedCategory,
                 userId: user.uid,
-                createdAt: new Date(),
-                updatedAt: new Date(),
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
             };
 
             if (document.expiryDate) {
@@ -161,7 +162,7 @@ const AddDocumentScreen: React.FC = () => {
                     return;
                 }
 
-                newDocument.expiryDate = document.expiryDate;
+                newDocument.expiryDate = Timestamp.fromDate(document.expiryDate);
             }
 
             console.log('Attempting to add document to Firestore...');

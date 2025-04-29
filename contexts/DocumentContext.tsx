@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, d
 import { db } from '../config/firebase';
 import { Document, Category, DocumentWithStatus } from '../types/document';
 import { useUser } from './UserContext';
+import { Timestamp } from 'firebase/firestore';
 
 type DocumentStatus = 'active' | 'expiring' | 'expired';
 
@@ -39,13 +40,15 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [error, setError] = useState<string | null>(null);
     const { user } = useUser();
 
-    const calculateStatus = (expiryDate?: Date): DocumentStatus => {
+    const calculateStatus = (expiryDate?: Date | Timestamp): DocumentStatus => {
         if (!expiryDate) return 'active';
+
+        const expiryDateTime = expiryDate instanceof Timestamp ? expiryDate.toDate() : expiryDate;
         const now = new Date();
         const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-        if (expiryDate < now) return 'expired';
-        if (expiryDate <= thirtyDaysFromNow) return 'expiring';
+        if (expiryDateTime < now) return 'expired';
+        if (expiryDateTime <= thirtyDaysFromNow) return 'expiring';
         return 'active';
     };
 
@@ -62,14 +65,21 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             );
 
             const querySnapshot = await getDocs(q);
-            const docs = querySnapshot.docs.map(doc => ({
-                ...doc.data() as Document,
-                id: doc.id,
-                status: calculateStatus((doc.data() as Document).expiryDate)
-            }));
+            const docs = querySnapshot.docs.map(doc => {
+                const data = doc.data() as Document;
+                return {
+                    ...data,
+                    id: doc.id,
+                    status: calculateStatus(data.expiryDate instanceof Timestamp ? data.expiryDate.toDate() : undefined)
+                };
+            });
 
-            // Sort documents by createdAt after fetching
-            docs.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+            // Sort documents by createdAt in memory
+            docs.sort((a, b) => {
+                const timeA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+                const timeB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+                return timeB - timeA; // Sort in descending order (newest first)
+            });
 
             setDocuments(docs);
         } catch (err) {
@@ -151,8 +161,8 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             const docRef = await addDoc(collection(db, 'documents'), {
                 ...document,
                 userId: user.uid,
-                createdAt: new Date(),
-                updatedAt: new Date()
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now()
             });
             console.log('DocumentContext: Document created with ID:', docRef.id);
 
@@ -221,8 +231,8 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             const docRef = await addDoc(collection(db, 'categories'), {
                 ...category,
                 userId: user.uid,
-                createdAt: new Date(),
-                updatedAt: new Date()
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now()
             });
 
             await refreshCategories();
