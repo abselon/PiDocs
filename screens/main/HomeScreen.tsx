@@ -8,6 +8,7 @@ import { DocumentWithStatus } from '../../types/document';
 import { spacing, typography, shadows } from '../../theme/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { TextStyle } from 'react-native';
+import { Timestamp } from 'firebase/firestore';
 
 type RootStackParamList = {
     Home: undefined;
@@ -18,6 +19,7 @@ type RootStackParamList = {
     Settings: undefined;
     Backup: undefined;
     BrowseDocs: undefined;
+    Profile: undefined;
 };
 
 type NavigationProp = {
@@ -33,18 +35,20 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.lg,
+        backgroundColor: theme.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.surfaceVariant,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
     },
     headerLeft: {
-        flexDirection: 'column',
-        alignItems: 'flex-start',
+        flex: 1,
     },
     appTitle: {
         fontSize: 32,
         fontWeight: 'bold',
-        color: theme.onBackground,
+        color: theme.onSurface,
         marginBottom: spacing.xs,
     },
     securityBadge: {
@@ -54,6 +58,7 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xs,
         borderRadius: 12,
+        alignSelf: 'flex-start',
     },
     securityText: {
         marginLeft: spacing.xs,
@@ -62,7 +67,7 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
     },
     content: {
         flex: 1,
-        paddingHorizontal: spacing.lg,
+        padding: spacing.lg,
     },
     grid: {
         flexDirection: 'row',
@@ -73,33 +78,38 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
     gridItem: {
         width: '48%',
         aspectRatio: 1,
-        backgroundColor: theme.surfaceVariant,
+        backgroundColor: theme.surface,
         borderRadius: 20,
         padding: spacing.lg,
         marginBottom: spacing.lg,
         ...shadows.medium,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.surfaceVariant,
     },
     gridItemIcon: {
         marginBottom: spacing.md,
     },
     gridItemText: {
-        color: theme.onSurfaceVariant,
+        color: theme.onSurface,
         fontSize: 16,
         fontWeight: '600',
         textAlign: 'center',
     },
     overview: {
         marginTop: spacing.lg,
-        backgroundColor: theme.surfaceVariant,
+        backgroundColor: theme.surface,
         borderRadius: 20,
         padding: spacing.lg,
+        ...shadows.medium,
+        borderWidth: 1,
+        borderColor: theme.surfaceVariant,
     },
     overviewTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: theme.onSurfaceVariant,
+        color: theme.onSurface,
         marginBottom: spacing.lg,
     },
     statsGrid: {
@@ -108,11 +118,16 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
     },
     statItem: {
         alignItems: 'center',
+        backgroundColor: theme.surfaceVariant,
+        padding: spacing.md,
+        borderRadius: 12,
+        width: '30%',
     },
     statValue: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: theme.onSurfaceVariant,
+        color: theme.onSurface,
+        marginTop: spacing.xs,
     },
     statLabel: {
         fontSize: 14,
@@ -122,10 +137,12 @@ const createStyles = (theme: MD3Theme['colors']) => StyleSheet.create({
     headerButtons: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: spacing.sm,
     },
     headerButton: {
-        marginLeft: spacing.md,
-        padding: spacing.xs,
+        backgroundColor: theme.surfaceVariant,
+        borderRadius: 12,
+        padding: spacing.sm,
     },
 });
 
@@ -141,8 +158,11 @@ const HomeScreen: React.FC = () => {
         const expiring = documents.filter(doc => {
             if (!doc.expiryDate) return false;
 
-            // Ensure expiryDate is a Date object
-            const expiryDate = doc.expiryDate instanceof Date ? doc.expiryDate : new Date(doc.expiryDate);
+            // Convert Timestamp to Date
+            const expiryDate = doc.expiryDate instanceof Timestamp
+                ? doc.expiryDate.toDate()
+                : new Date(doc.expiryDate);
+
             if (isNaN(expiryDate.getTime())) return false;
 
             const diffTime = expiryDate.getTime() - today.getTime();
@@ -154,7 +174,9 @@ const HomeScreen: React.FC = () => {
             total: documents.length,
             active: documents.filter(doc => {
                 if (!doc.expiryDate) return true;
-                const expiryDate = doc.expiryDate instanceof Date ? doc.expiryDate : new Date(doc.expiryDate);
+                const expiryDate = doc.expiryDate instanceof Timestamp
+                    ? doc.expiryDate.toDate()
+                    : new Date(doc.expiryDate);
                 return !isNaN(expiryDate.getTime()) && expiryDate > today;
             }).length,
             expiring,
@@ -238,7 +260,7 @@ const HomeScreen: React.FC = () => {
                         <MaterialCommunityIcons
                             name="camera"
                             size={40}
-                            color={theme.colors.secondary}
+                            color={theme.colors.primary}
                             style={styles.gridItemIcon}
                         />
                         <Text style={styles.gridItemText}>Scan ID</Text>
@@ -251,7 +273,7 @@ const HomeScreen: React.FC = () => {
                         <MaterialCommunityIcons
                             name="cloud-upload"
                             size={40}
-                            color={theme.colors.tertiary}
+                            color={theme.colors.primary}
                             style={styles.gridItemIcon}
                         />
                         <Text style={styles.gridItemText}>Backup</Text>
@@ -268,13 +290,13 @@ const HomeScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.statItem}>
-                            <MaterialCommunityIcons name="check-circle" size={24} color={theme.colors.secondary} />
+                            <MaterialCommunityIcons name="check-circle" size={24} color={theme.colors.primary} />
                             <Text style={styles.statValue}>{stats.active}</Text>
                             <Text style={styles.statLabel}>Active</Text>
                         </View>
 
                         <View style={styles.statItem}>
-                            <MaterialCommunityIcons name="alert-circle" size={24} color={theme.colors.error} />
+                            <MaterialCommunityIcons name="alert-circle" size={24} color={theme.colors.primary} />
                             <Text style={styles.statValue}>{stats.expiring}</Text>
                             <Text style={styles.statLabel}>Expiring</Text>
                         </View>

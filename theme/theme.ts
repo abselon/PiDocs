@@ -8,11 +8,21 @@ export type CustomTheme = typeof MD3LightTheme & {
         accent: string;
         background: string;
         surface: string;
+        surfaceVariant: string;
+        onSurface: string;
+        onSurfaceVariant: string;
+        onBackground: string;
+        onPrimary: string;
         text: string;
         textSecondary: string;
         error: string;
         warning: string;
         success: string;
+        card: string;
+        border: string;
+        notification: string;
+        gradientStart: string;
+        gradientEnd: string;
     };
 };
 
@@ -34,26 +44,26 @@ declare module 'react-native-paper' {
 }
 
 const darkColors = {
-    primary: '#2196F3', // Bright blue
-    secondary: '#34C759', // Success green
-    accent: '#FF9500', // Warning orange
-    error: '#FF3B30', // Danger red
-    success: '#34C759',
-    warning: '#FF9500',
-    info: '#2196F3',
-    background: '#000000', // Pure black
-    surface: '#1C1C1E', // Dark grey
-    card: '#1C1C1E',
-    text: '#FFFFFF', // White
-    textSecondary: '#B0B0B0', // Light grey
-    border: '#2C2C2E',
-    placeholder: '#8E8E93',
-    notification: '#FF3B30',
+    primary: '#0A84FF',
+    secondary: '#5E5CE6',
+    accent: '#FF9F0A',
+    background: '#000000',
+    surface: '#1C1C1E',
+    surfaceVariant: '#2C2C2E',
     onSurface: '#FFFFFF',
-    onSurfaceVariant: '#B0B0B0',
-    // Gradient colors
-    gradientStart: '#2196F3',
-    gradientEnd: '#34C759',
+    onSurfaceVariant: '#8E8E93',
+    onBackground: '#FFFFFF',
+    onPrimary: '#FFFFFF',
+    text: '#FFFFFF',
+    textSecondary: '#8E8E93',
+    error: '#FF453A',
+    warning: '#FF9F0A',
+    success: '#32D74B',
+    card: '#1C1C1E',
+    border: '#38383A',
+    notification: '#FF453A',
+    gradientStart: '#0A84FF',
+    gradientEnd: '#5E5CE6',
 };
 
 const lightColors = {
@@ -68,45 +78,17 @@ const lightColors = {
     onSurfaceVariant: '#8E8E93',
 };
 
-export const lightTheme = {
-    ...MD3LightTheme,
-    colors: {
-        ...MD3LightTheme.colors,
-        primary: '#007AFF',
-        secondary: '#5856D6',
-        accent: '#FF9500',
-        background: '#FFFFFF',
-        surface: '#F2F2F7',
-        text: '#000000',
-        textSecondary: '#8E8E93',
-        error: '#FF3B30',
-        warning: '#FF9500',
-        success: '#34C759',
-        card: '#FFFFFF',
-        border: '#C6C6C8',
-        notification: '#FF3B30',
-    },
-} as Theme;
-
 export const darkTheme = {
     ...MD3DarkTheme,
     colors: {
         ...MD3DarkTheme.colors,
-        primary: '#0A84FF',
-        secondary: '#5E5CE6',
-        accent: '#FF9F0A',
-        background: '#000000',
-        surface: '#1C1C1E',
-        text: '#FFFFFF',
-        textSecondary: '#8E8E93',
-        error: '#FF453A',
-        warning: '#FF9F0A',
-        success: '#32D74B',
-        card: '#1C1C1E',
-        border: '#38383A',
-        notification: '#FF453A',
+        ...darkColors,
     },
-} as Theme;
+    dark: true,
+} as unknown as Theme;
+
+// Force dark theme
+export const lightTheme = darkTheme;
 
 export const spacing = {
     xs: 4,

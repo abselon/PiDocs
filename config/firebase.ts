@@ -1,10 +1,10 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { initializeAuth, getAuth } from 'firebase/auth';
+import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const firebaseConfig = {
+export const firebaseConfig = {
     apiKey: "AIzaSyBPVqzstaq1gCAhuwdR8AK3Ax9XgGDKrxk",
     authDomain: "pidocs-d31ad.firebaseapp.com",
     projectId: "pidocs-d31ad",
@@ -22,10 +22,12 @@ if (getApps().length === 0) {
     app = getApps()[0];
 }
 
-// Initialize Auth with memory persistence
+// Initialize Auth with AsyncStorage persistence
 let auth;
 try {
-    auth = initializeAuth(app);
+    auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage)
+    });
 } catch (error) {
     // If auth is already initialized, get the existing instance
     auth = getAuth(app);

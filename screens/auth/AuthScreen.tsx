@@ -1,90 +1,128 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
-import { spacing } from '../../theme/theme';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../config/firebase';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../navigation/types';
+import { spacing, typography, shadows } from '../../theme/theme';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { AuthStackParamList } from '../../navigation/types';
 
-type AuthScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Auth'>;
+type AuthScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Auth'>;
 
 const AuthScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation<AuthScreenNavigationProp>();
 
-    const handleSignIn = async () => {
-        try {
-            // For testing purposes, using a test account
-            await signInWithEmailAndPassword(auth, 'test@example.com', 'password123');
-        } catch (error: any) {
-            console.error('Error signing in:', error.message);
-        }
-    };
-
     const styles = StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: theme.colors.background,
+            backgroundColor: theme.colors.surfaceVariant,
+        },
+        content: {
+            flex: 1,
             justifyContent: 'center',
             padding: spacing.lg,
         },
         logo: {
             alignItems: 'center',
-            marginBottom: spacing.xl,
+            marginBottom: spacing.xxl,
+        },
+        logoIcon: {
+            backgroundColor: theme.colors.primary,
+            width: 80,
+            height: 80,
+            borderRadius: 20,
+            justifyContent: 'center',
+            alignItems: 'center',
+            ...shadows.medium,
         },
         title: {
-            fontSize: 32,
-            fontWeight: 'bold',
-            color: theme.colors.onBackground,
-            marginTop: spacing.md,
+            ...typography.h1,
+            color: theme.colors.onSurfaceVariant,
+            textAlign: 'center',
+            marginTop: spacing.lg,
         },
         subtitle: {
-            fontSize: 16,
+            ...typography.body,
             color: theme.colors.onSurfaceVariant,
-            marginTop: spacing.xs,
             textAlign: 'center',
+            marginTop: spacing.sm,
+            marginBottom: spacing.xxl,
         },
         buttonContainer: {
-            marginTop: spacing.xl,
+            gap: spacing.md,
         },
         button: {
-            marginBottom: spacing.md,
+            borderRadius: 12,
+            backgroundColor: theme.colors.surface,
+        },
+        outlinedButton: {
+            borderColor: theme.colors.primary,
+            borderWidth: 2,
+            backgroundColor: theme.colors.surface,
+        },
+        buttonLabel: {
+            fontSize: 16,
+            fontWeight: '600',
+            color: theme.colors.onSurface,
+        },
+        footer: {
+            padding: spacing.lg,
+            alignItems: 'center',
+            backgroundColor: theme.colors.surface,
+        },
+        footerText: {
+            ...typography.caption,
+            color: theme.colors.onSurfaceVariant,
         },
     });
 
     return (
-        <View style={styles.container}>
-            <View style={styles.logo}>
-                <MaterialCommunityIcons
-                    name="shield-lock"
-                    size={80}
-                    color={theme.colors.primary}
-                />
-                <Text style={styles.title}>PIDocs</Text>
-                <Text style={styles.subtitle}>
-                    Secure your important documents
+        <SafeAreaView style={styles.container}>
+            <View style={styles.content}>
+                <View style={styles.logo}>
+                    <View style={styles.logoIcon}>
+                        <MaterialCommunityIcons
+                            name="file-document-multiple"
+                            size={40}
+                            color="white"
+                        />
+                    </View>
+                    <Text style={styles.title}>PiDocs</Text>
+                    <Text style={styles.subtitle}>
+                        Securely store and manage your important documents
+                    </Text>
+                </View>
+
+                <View style={styles.buttonContainer}>
+                    <Button
+                        mode="contained"
+                        onPress={() => navigation.navigate('Login')}
+                        style={styles.button}
+                        labelStyle={styles.buttonLabel}
+                        contentStyle={{ height: 50 }}
+                    >
+                        Sign In
+                    </Button>
+                    <Button
+                        mode="outlined"
+                        onPress={() => navigation.navigate('Register')}
+                        style={[styles.button, styles.outlinedButton]}
+                        labelStyle={[styles.buttonLabel, { color: theme.colors.primary }]}
+                        contentStyle={{ height: 50 }}
+                    >
+                        Create Account
+                    </Button>
+                </View>
+            </View>
+
+            <View style={styles.footer}>
+                <Text style={styles.footerText}>
+                    By continuing, you agree to our Terms & Privacy Policy
                 </Text>
             </View>
-            <View style={styles.buttonContainer}>
-                <Button
-                    mode="contained"
-                    style={styles.button}
-                    onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
-                >
-                    Sign In
-                </Button>
-                <Button
-                    mode="outlined"
-                    style={styles.button}
-                    onPress={() => navigation.navigate('Auth', { screen: 'Register' })}
-                >
-                    Create Account
-                </Button>
-            </View>
-        </View>
+        </SafeAreaView>
     );
 };
 
