@@ -134,24 +134,37 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     const addDocument = async (document: Omit<Document, 'id'>): Promise<string> => {
-        if (!user) throw new Error('User not authenticated');
+        if (!user) {
+            console.error('User not authenticated in addDocument');
+            throw new Error('User not authenticated');
+        }
 
         try {
+            console.log('DocumentContext: Starting document addition...');
             setLoading(true);
             setError(null);
 
+            console.log('DocumentContext: User ID:', user.uid);
+
+            // Add document to Firestore
+            console.log('DocumentContext: Creating document in Firestore...');
             const docRef = await addDoc(collection(db, 'documents'), {
                 ...document,
                 userId: user.uid,
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
+            console.log('DocumentContext: Document created with ID:', docRef.id);
 
+            // Refresh documents list
+            console.log('DocumentContext: Refreshing documents list...');
             await refreshDocuments();
+            console.log('DocumentContext: Documents list refreshed');
+
             return docRef.id;
         } catch (err) {
+            console.error('DocumentContext: Error adding document:', err);
             setError('Failed to add document');
-            console.error(err);
             throw err;
         } finally {
             setLoading(false);

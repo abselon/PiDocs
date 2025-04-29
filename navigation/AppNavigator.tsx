@@ -45,7 +45,7 @@ const AppNavigator: React.FC = () => {
                     <>
                         <Stack.Screen name="Home" component={HomeScreen} />
                         <Stack.Screen name="AddDocument" component={AddDocumentScreen} />
-                        <Stack.Screen name="DocumentDetails" component={DocumentDetailsScreen} />
+                        <Stack.Screen name="DocumentDetail" component={DocumentDetailsScreen} />
                         <Stack.Screen name="Categories" component={CategoryScreen} />
                         <Stack.Screen name="ScanID" component={ScanIDScreen} />
                         <Stack.Screen name="Settings" component={SettingsScreen} />

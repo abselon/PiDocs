@@ -13,22 +13,26 @@ export interface DocumentMetadata {
 
 export interface Document extends DocumentMetadata {
     id: string;
-    fileUrl?: string;
-    fileType?: string;
-    fileSize?: number;
+    notes?: string;
+    fileData: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    categoryId: string;
+    userId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    expiryDate?: Date;
 }
 
 export interface Category {
     id: string;
     name: string;
+    icon: keyof typeof MaterialCommunityIcons.glyphMap;
     description?: string;
     userId: string;
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-    metadataTemplate?: Record<string, {
-        type: 'text' | 'date' | 'number' | 'boolean';
-        required: boolean;
-        label: string;
-    }>;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
 export type DocumentStatus = 'active' | 'expiring' | 'expired';

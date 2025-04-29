@@ -2,8 +2,8 @@ export type RootStackParamList = {
     Auth: { screen: keyof AuthStackParamList };
     Home: undefined;
     AddDocument: undefined;
-    DocumentDetails: { document: any };
     Categories: { category?: string };
+    DocumentDetails: { documentId: string };
     ScanID: undefined;
     Settings: undefined;
     Backup: undefined;

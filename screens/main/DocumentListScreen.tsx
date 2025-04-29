@@ -1,115 +1,104 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
-import { Text, Card, useTheme, Button, Chip, Searchbar } from 'react-native-paper';
-import { spacing, typography, shadows } from '../../theme/theme';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Text, useTheme, FAB, Searchbar } from 'react-native-paper';
+import { spacing } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { FAB } from 'react-native-paper';
-import { DocumentsStackParamList } from '../../navigation/types';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { Category } from '../../types/document';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 
-type NavigationProp = StackNavigationProp<DocumentsStackParamList>;
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const DocumentListScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation<NavigationProp>();
     const { documents, categories } = useDocuments();
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredDocuments = documents.filter(doc => {
-        const matchesCategory = !selectedCategory || doc.categoryId === selectedCategory;
-        const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (doc.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesCategory && matchesSearch;
-    });
+    const getDocumentCount = (categoryId: string) => {
+        const filteredDocs = documents.filter(doc => {
+            const matchesCategory = doc.categoryId === categoryId;
+            const matchesSearch = searchQuery.toLowerCase().trim() === '' ||
+                doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (doc.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (doc.notes || '').toLowerCase().includes(searchQuery.toLowerCase());
+            return matchesCategory && matchesSearch;
+        });
+        return filteredDocs.length;
+    };
+
+    const getCategoryIcon = (category: Category) => {
+        switch (category.name.toLowerCase()) {
+            case 'personal ids':
+                return 'card-account-details';
+            case 'financial':
+                return 'bank';
+            case 'medical':
+                return 'medical-bag';
+            case 'education':
+                return 'school';
+            case 'insurance':
+                return 'shield-check';
+            case 'legal':
+                return 'gavel';
+            default:
+                return category.icon || 'folder';
+        }
+    };
+
+    const renderCategoryCard = (category: Category) => {
+        const documentCount = getDocumentCount(category.id);
+        return (
+            <TouchableOpacity
+                key={category.id}
+                style={[styles.categoryCard, { backgroundColor: '#1E1E1E' }]}
+                onPress={() => navigation.navigate('Categories', { category: category.id })}
+            >
+                <View style={[styles.iconContainer, { backgroundColor: '#007AFF' }]}>
+                    <MaterialCommunityIcons
+                        name={getCategoryIcon(category)}
+                        size={24}
+                        color="#FFFFFF"
+                    />
+                </View>
+                <Text style={styles.categoryName}>{category.name}</Text>
+                <Text style={styles.documentCount}>
+                    {documentCount} document{documentCount !== 1 ? 's' : ''}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: '#000000' }]}>
             <View style={styles.header}>
-                <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-                    Documents
-                </Text>
+                <Text style={styles.title}>Browse</Text>
+                <Text style={styles.subtitle}>All your documents by category</Text>
                 <Searchbar
                     placeholder="Search documents"
                     onChangeText={setSearchQuery}
                     value={searchQuery}
-                    style={[styles.searchBar, { backgroundColor: theme.colors.surface }]}
+                    style={styles.searchBar}
+                    inputStyle={styles.searchInput}
+                    iconColor="#007AFF"
+                    placeholderTextColor="#8E8E93"
                 />
-                <View style={styles.categoriesContainer}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.categoriesScroll}
-                    >
-                        <Chip
-                            selected={!selectedCategory}
-                            onPress={() => setSelectedCategory(null)}
-                            style={styles.categoryChip}
-                        >
-                            All
-                        </Chip>
-                        {categories.map(category => (
-                            <Chip
-                                key={category.id}
-                                selected={selectedCategory === category.id}
-                                onPress={() => setSelectedCategory(category.id)}
-                                style={styles.categoryChip}
-                            >
-                                {category.name}
-                            </Chip>
-                        ))}
-                    </ScrollView>
-                </View>
             </View>
 
-            <FlatList
-                data={filteredDocuments}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id })}
-                    >
-                        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-                            <Card.Content>
-                                <View style={styles.cardHeader}>
-                                    <MaterialCommunityIcons
-                                        name="file-document"
-                                        size={24}
-                                        color={theme.colors.primary}
-                                    />
-                                    <Text style={[styles.documentTitle, { color: theme.colors.onSurface }]}>
-                                        {item.title}
-                                    </Text>
-                                </View>
-                                <Text style={[styles.documentDescription, { color: theme.colors.onSurfaceVariant }]}>
-                                    {item.description}
-                                </Text>
-                                <View style={styles.cardFooter}>
-                                    <Chip
-                                        style={[styles.categoryChip, { backgroundColor: theme.colors.surfaceVariant }]}
-                                    >
-                                        {categories.find(c => c.id === item.categoryId)?.name || 'Uncategorized'}
-                                    </Chip>
-                                    {item.expiryDate && (
-                                        <Text style={[styles.expiryDate, { color: theme.colors.error }]}>
-                                            Expires: {new Date(item.expiryDate).toLocaleDateString()}
-                                        </Text>
-                                    )}
-                                </View>
-                            </Card.Content>
-                        </Card>
-                    </TouchableOpacity>
-                )}
-            />
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.gridContainer}
+                showsVerticalScrollIndicator={false}
+            >
+                {categories.map(renderCategoryCard)}
+            </ScrollView>
 
             <FAB
                 icon="plus"
-                style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+                style={[styles.fab, { backgroundColor: '#007AFF' }]}
                 onPress={() => navigation.navigate('AddDocument')}
                 color="#FFFFFF"
             />
@@ -123,57 +112,67 @@ const styles = StyleSheet.create({
     },
     header: {
         padding: spacing.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: '#1E1E1E',
     },
     title: {
-        ...typography.title,
+        fontSize: 34,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        marginBottom: spacing.xs,
+    },
+    subtitle: {
+        fontSize: 16,
+        color: '#8E8E93',
         marginBottom: spacing.md,
     },
     searchBar: {
-        marginBottom: spacing.md,
-    },
-    categoriesContainer: {
-        marginBottom: spacing.md,
-    },
-    categoriesScroll: {
-        paddingRight: spacing.lg,
-    },
-    categoryChip: {
-        marginRight: spacing.sm,
-    },
-    listContent: {
-        padding: spacing.lg,
-    },
-    card: {
-        marginBottom: spacing.md,
-        ...shadows.small,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        backgroundColor: '#1E1E1E',
+        borderRadius: 12,
+        elevation: 0,
         marginBottom: spacing.sm,
     },
-    documentTitle: {
-        ...typography.subtitle,
-        marginLeft: spacing.sm,
+    searchInput: {
+        color: '#FFFFFF',
+    },
+    scrollView: {
         flex: 1,
     },
-    documentDescription: {
-        ...typography.body,
-        marginBottom: spacing.sm,
-    },
-    cardFooter: {
+    gridContainer: {
+        padding: spacing.lg,
         flexDirection: 'row',
+        flexWrap: 'wrap',
         justifyContent: 'space-between',
-        alignItems: 'center',
     },
-    expiryDate: {
-        ...typography.caption,
+    categoryCard: {
+        width: '48%',
+        padding: spacing.lg,
+        borderRadius: 16,
+        marginBottom: spacing.lg,
+    },
+    iconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: spacing.md,
+    },
+    categoryName: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#FFFFFF',
+        marginBottom: spacing.xs,
+    },
+    documentCount: {
+        fontSize: 14,
+        color: '#8E8E93',
     },
     fab: {
         position: 'absolute',
-        margin: 16,
-        right: 0,
-        bottom: 0,
+        right: spacing.lg,
+        bottom: spacing.lg,
+        borderRadius: 30,
     },
 });
 

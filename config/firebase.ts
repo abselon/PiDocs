@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { initializeAuth, getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,12 +15,21 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase only if it hasn't been initialized
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let app;
+if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+} else {
+    app = getApps()[0];
+}
 
-// Initialize Auth with persistence
-const auth = initializeAuth(app, {
-    persistence: browserLocalPersistence
-});
+// Initialize Auth with memory persistence
+let auth;
+try {
+    auth = initializeAuth(app);
+} catch (error) {
+    // If auth is already initialized, get the existing instance
+    auth = getAuth(app);
+}
 
 // Initialize other Firebase services
 const db = getFirestore(app);

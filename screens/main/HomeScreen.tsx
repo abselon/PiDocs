@@ -140,14 +140,23 @@ const HomeScreen: React.FC = () => {
         const today = new Date();
         const expiring = documents.filter(doc => {
             if (!doc.expiryDate) return false;
-            const diffTime = doc.expiryDate.getTime() - today.getTime();
+
+            // Ensure expiryDate is a Date object
+            const expiryDate = doc.expiryDate instanceof Date ? doc.expiryDate : new Date(doc.expiryDate);
+            if (isNaN(expiryDate.getTime())) return false;
+
+            const diffTime = expiryDate.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             return diffDays <= 30 && diffDays >= 0;
         }).length;
 
         return {
             total: documents.length,
-            active: documents.filter(doc => !doc.expiryDate || doc.expiryDate > today).length,
+            active: documents.filter(doc => {
+                if (!doc.expiryDate) return true;
+                const expiryDate = doc.expiryDate instanceof Date ? doc.expiryDate : new Date(doc.expiryDate);
+                return !isNaN(expiryDate.getTime()) && expiryDate > today;
+            }).length,
             expiring,
         };
     }, [documents]);
