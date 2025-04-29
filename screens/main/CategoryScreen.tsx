@@ -1,19 +1,39 @@
 import React from 'react';
-import { View, StyleSheet, Platform, FlatList } from 'react-native';
+import { View, StyleSheet, Platform, FlatList, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, useTheme, IconButton, Card } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { spacing, typography } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+interface Document {
+    id: string;
+    title: string;
+    description?: string;
+    thumbnailUrl?: string;
+    categoryId: string;
+    fileData?: string;
+    fileType?: string;
+    name?: string;
+}
+
+type RootStackParamList = {
+    DocumentDetail: { documentId: string };
+};
+
 const CategoryScreen: React.FC = () => {
     const theme = useTheme();
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const route = useRoute();
-    const { documents } = useDocuments();
-    const category = (route.params as any)?.category;
+    const { documents, categories } = useDocuments();
+    const categoryId = (route.params as any)?.category;
 
-    const categoryDocuments = documents.filter(doc => doc.categoryId === category);
+    const category = categories.find(c => c.id === categoryId);
+    const categoryName = category?.name || 'Category';
+    const categoryDocuments = documents.filter(doc => doc.categoryId === categoryId);
+    const numColumns = 2;
+    const screenWidth = Dimensions.get('window').width;
+    const itemWidth = (screenWidth - (spacing.lg * 2) - spacing.md) / numColumns;
 
     const styles = StyleSheet.create({
         container: {
@@ -37,30 +57,45 @@ const CategoryScreen: React.FC = () => {
             flex: 1,
             paddingHorizontal: spacing.lg,
         },
-        listContent: {
-            paddingBottom: spacing.lg,
-        },
-        card: {
-            marginBottom: spacing.md,
-            borderRadius: 12,
-        },
-        cardContent: {
-            flexDirection: 'row',
-            alignItems: 'center',
-        },
-        documentIcon: {
-            marginRight: spacing.md,
-        },
-        documentInfo: {
+        gridContainer: {
             flex: 1,
         },
+        gridItem: {
+            width: itemWidth,
+            marginRight: spacing.md,
+            marginBottom: spacing.md,
+        },
+        card: {
+            borderRadius: 12,
+            overflow: 'hidden',
+        },
+        imageContainer: {
+            width: '100%',
+            height: itemWidth * 1.2,
+            backgroundColor: theme.colors.surfaceVariant,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        image: {
+            width: '100%',
+            height: '100%',
+            resizeMode: 'cover',
+        },
+        documentIcon: {
+            fontSize: 40,
+            color: theme.colors.primary,
+        },
+        cardContent: {
+            padding: spacing.sm,
+        },
         documentTitle: {
-            fontSize: typography.h3.fontSize,
-            fontWeight: typography.h3.fontWeight as any,
+            fontSize: typography.body.fontSize,
+            fontWeight: '500',
             color: theme.colors.onSurface,
+            marginTop: spacing.xs,
         },
         documentDescription: {
-            fontSize: typography.body.fontSize,
+            fontSize: typography.caption.fontSize,
             color: theme.colors.onSurfaceVariant,
             marginTop: spacing.xs,
         },
@@ -72,6 +107,43 @@ const CategoryScreen: React.FC = () => {
         },
     });
 
+    const renderDocumentItem = ({ item }: { item: Document }) => (
+        <TouchableOpacity
+            style={styles.gridItem}
+            onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id })}
+        >
+            <Card style={styles.card}>
+                <View style={styles.imageContainer}>
+                    {item.fileData ? (
+                        <Image
+                            source={{
+                                uri: `data:${item.fileType};base64,${item.fileData.replace(/^data:.+;base64,/, '')}`
+                            }}
+                            style={styles.image}
+                            onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
+                        />
+                    ) : (
+                        <MaterialCommunityIcons
+                            name="file-document"
+                            size={40}
+                            style={styles.documentIcon}
+                        />
+                    )}
+                </View>
+                <Card.Content style={styles.cardContent}>
+                    <Text style={styles.documentTitle} numberOfLines={1}>
+                        {item.name || item.title}
+                    </Text>
+                    {item.description && (
+                        <Text style={styles.documentDescription} numberOfLines={2}>
+                            {item.description}
+                        </Text>
+                    )}
+                </Card.Content>
+            </Card>
+        </TouchableOpacity>
+    );
+
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -80,34 +152,16 @@ const CategoryScreen: React.FC = () => {
                     size={24}
                     onPress={() => navigation.goBack()}
                 />
-                <Text style={styles.title}>{category || 'Category'}</Text>
+                <Text style={styles.title}>{categoryName}</Text>
             </View>
             <View style={styles.content}>
                 {categoryDocuments.length > 0 ? (
                     <FlatList
                         data={categoryDocuments}
                         keyExtractor={item => item.id}
-                        contentContainerStyle={styles.listContent}
-                        renderItem={({ item }) => (
-                            <Card style={styles.card}>
-                                <Card.Content style={styles.cardContent}>
-                                    <MaterialCommunityIcons
-                                        name="file-document"
-                                        size={24}
-                                        color={theme.colors.primary}
-                                        style={styles.documentIcon}
-                                    />
-                                    <View style={styles.documentInfo}>
-                                        <Text style={styles.documentTitle}>{item.title}</Text>
-                                        {item.description && (
-                                            <Text style={styles.documentDescription}>
-                                                {item.description}
-                                            </Text>
-                                        )}
-                                    </View>
-                                </Card.Content>
-                            </Card>
-                        )}
+                        numColumns={numColumns}
+                        contentContainerStyle={styles.gridContainer}
+                        renderItem={renderDocumentItem}
                     />
                 ) : (
                     <Text style={styles.emptyMessage}>

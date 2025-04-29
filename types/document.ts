@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export interface DocumentMetadata {
     title: string;
+    name: string;
     description?: string;
     expiryDate?: Timestamp;
     categoryId: string;
@@ -14,7 +15,6 @@ export interface DocumentMetadata {
 
 export interface Document extends DocumentMetadata {
     id: string;
-    notes?: string;
     fileData: string;
     fileName: string;
     fileType: string;

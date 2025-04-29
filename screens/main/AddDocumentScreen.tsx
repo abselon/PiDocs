@@ -19,8 +19,8 @@ type Step = 'category' | 'upload' | 'metadata' | 'reminder';
 
 interface DocumentForm {
     title: string;
+    name: string;
     description: string;
-    notes: string;
     file: DocumentPicker.DocumentPickerAsset | null;
     expiryDate?: Date;
 }
@@ -39,8 +39,8 @@ const AddDocumentScreen: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [document, setDocument] = useState<DocumentForm>({
         title: '',
+        name: '',
         description: '',
-        notes: '',
         file: null,
     });
     const [loading, setLoading] = useState(false);
@@ -139,8 +139,8 @@ const AddDocumentScreen: React.FC = () => {
 
             const newDocument: Omit<Document, 'id'> = {
                 title: document.title || document.file.name,
+                name: document.name || document.title || document.file.name,
                 description: document.description,
-                notes: document.notes,
                 fileData: base64Data,
                 fileName: document.file.name,
                 fileType: document.file.mimeType,
@@ -423,13 +423,11 @@ const AddDocumentScreen: React.FC = () => {
                         multiline
                     />
                     <TextInput
-                        label="Notes"
-                        value={document.notes}
-                        onChangeText={text => setDocument(prev => ({ ...prev, notes: text }))}
+                        label="Name"
+                        value={document.name}
+                        onChangeText={text => setDocument(prev => ({ ...prev, name: text }))}
                         style={styles.input}
                         mode="outlined"
-                        multiline
-                        placeholder="Add searchable notes about this document"
                     />
                     <TouchableOpacity
                         style={[styles.datePickerButton, { borderColor: theme.colors.outline }]}
