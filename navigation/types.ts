@@ -9,6 +9,9 @@ export type RootStackParamList = {
     Backup: undefined;
     BrowseDocs: undefined;
     Profile: undefined;
+    CategoryList: undefined;
+    Category: { categoryId: string };
+    DocumentList: undefined;
 };
 
 export type AuthStackParamList = {

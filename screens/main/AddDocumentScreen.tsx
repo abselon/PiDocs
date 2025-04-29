@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal as RNModal, Dimensions, Animated } from 'react-native';
 import { Text, Card, useTheme, Button, TextInput, Portal, Modal, ActivityIndicator, IconButton } from 'react-native-paper';
 import { spacing, typography, shadows } from '../../theme/theme';
@@ -9,7 +9,7 @@ import { useUser } from '../../contexts/UserContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Category, Document } from '../../types/document';
 import CalendarPicker from 'react-native-calendar-picker';
 import { Moment } from 'moment';
@@ -33,10 +33,11 @@ interface CategoryForm {
 const AddDocumentScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation();
+    const route = useRoute();
     const { categories, addDocument, addCategory } = useDocuments();
     const { user } = useUser();
     const [currentStep, setCurrentStep] = useState<Step>('category');
-    const [selectedCategory, setSelectedCategory] = useState<string>('');
+    const [selectedCategory, setSelectedCategory] = useState<string>(route.params?.categoryId || '');
     const [document, setDocument] = useState<DocumentForm>({
         title: '',
         name: '',
@@ -62,6 +63,13 @@ const AddDocumentScreen: React.FC = () => {
         email: user.email,
         isAnonymous: user.isAnonymous
     } : 'No user');
+
+    // If we have a pre-selected category, start at the upload step
+    useEffect(() => {
+        if (selectedCategory) {
+            setCurrentStep('upload');
+        }
+    }, [selectedCategory]);
 
     const pickDocument = async () => {
         try {

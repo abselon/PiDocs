@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Platform, FlatList, Image, TouchableOpacity, Dimensions } from 'react-native';
-import { Text, useTheme, IconButton, Card } from 'react-native-paper';
+import { Text, useTheme, IconButton, Card, FAB } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { spacing, typography } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
@@ -19,6 +19,7 @@ interface Document {
 
 type RootStackParamList = {
     DocumentDetail: { documentId: string };
+    AddDocument: { categoryId: string };
 };
 
 const CategoryScreen: React.FC = () => {
@@ -105,6 +106,12 @@ const CategoryScreen: React.FC = () => {
             textAlign: 'center',
             marginTop: spacing.xl,
         },
+        fab: {
+            position: 'absolute',
+            right: spacing.lg,
+            bottom: spacing.lg,
+            borderRadius: 30,
+        },
     });
 
     const renderDocumentItem = ({ item }: { item: Document }) => (
@@ -169,6 +176,12 @@ const CategoryScreen: React.FC = () => {
                     </Text>
                 )}
             </View>
+            <FAB
+                icon="plus"
+                style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+                onPress={() => navigation.navigate('AddDocument', { categoryId })}
+                color="#FFFFFF"
+            />
         </View>
     );
 };

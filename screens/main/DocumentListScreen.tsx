@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Text, useTheme, FAB, Searchbar } from 'react-native-paper';
+import { Text, useTheme, FAB, Searchbar, Portal, Modal, TextInput, Button } from 'react-native-paper';
 import { spacing } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
 import { useNavigation } from '@react-navigation/native';
@@ -15,8 +15,66 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const DocumentListScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation<NavigationProp>();
-    const { documents, categories } = useDocuments();
+    const { documents, categories, addCategory } = useDocuments();
     const [searchQuery, setSearchQuery] = useState('');
+    const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategoryIcon, setNewCategoryIcon] = useState<keyof typeof MaterialCommunityIcons.glyphMap>('folder');
+    const [loading, setLoading] = useState(false);
+
+    const handleCreateCategory = async () => {
+        if (!newCategoryName.trim()) return;
+
+        try {
+            setLoading(true);
+            await addCategory({
+                name: newCategoryName.trim(),
+                icon: newCategoryIcon,
+                userId: '', // Will be set by the context
+                description: ''
+            });
+            setShowAddCategoryModal(false);
+            setNewCategoryName('');
+        } catch (err) {
+            console.error('Error creating category:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const IconSelector: React.FC = () => {
+        const icons: (keyof typeof MaterialCommunityIcons.glyphMap)[] = [
+            'file-document-outline',
+            'file-pdf-box',
+            'file-image-outline',
+            'file-word-box',
+            'file-excel-box',
+            'file-powerpoint-box',
+            'folder-zip',
+            'folder'
+        ];
+
+        return (
+            <View style={styles.iconGrid}>
+                {icons.map((icon) => (
+                    <TouchableOpacity
+                        key={icon}
+                        style={[
+                            styles.iconButton,
+                            newCategoryIcon === icon && styles.selectedIcon
+                        ]}
+                        onPress={() => setNewCategoryIcon(icon)}
+                    >
+                        <MaterialCommunityIcons
+                            name={icon}
+                            size={24}
+                            color={newCategoryIcon === icon ? '#fff' : '#000'}
+                        />
+                    </TouchableOpacity>
+                ))}
+            </View>
+        );
+    };
 
     const getDocumentCount = (categoryId: string) => {
         const filteredDocs = documents.filter(doc => {
@@ -99,9 +157,45 @@ const DocumentListScreen: React.FC = () => {
             <FAB
                 icon="plus"
                 style={[styles.fab, { backgroundColor: '#007AFF' }]}
-                onPress={() => navigation.navigate('AddDocument')}
-                color="#FFFFFF"
+                onPress={() => setShowAddCategoryModal(true)}
             />
+
+            <Portal>
+                <Modal
+                    visible={showAddCategoryModal}
+                    onDismiss={() => setShowAddCategoryModal(false)}
+                    contentContainerStyle={styles.modalContainer}
+                >
+                    <Text style={styles.modalTitle}>New Category</Text>
+                    <TextInput
+                        label="Category Name"
+                        value={newCategoryName}
+                        onChangeText={setNewCategoryName}
+                        style={styles.modalInput}
+                        mode="outlined"
+                    />
+                    <Text style={styles.modalSubtitle}>Choose Icon</Text>
+                    <IconSelector />
+                    <View style={styles.modalButtons}>
+                        <Button
+                            mode="outlined"
+                            onPress={() => setShowAddCategoryModal(false)}
+                            style={styles.modalButton}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            mode="contained"
+                            onPress={handleCreateCategory}
+                            loading={loading}
+                            disabled={!newCategoryName.trim()}
+                            style={[styles.modalButton, { flex: 1 }]}
+                        >
+                            Create
+                        </Button>
+                    </View>
+                </Modal>
+            </Portal>
         </SafeAreaView>
     );
 };
@@ -173,6 +267,51 @@ const styles = StyleSheet.create({
         right: spacing.lg,
         bottom: spacing.lg,
         borderRadius: 30,
+    },
+    modalContainer: {
+        backgroundColor: '#1E1E1E',
+        padding: spacing.lg,
+        margin: spacing.lg,
+        borderRadius: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        marginBottom: spacing.lg,
+    },
+    modalSubtitle: {
+        fontSize: 16,
+        color: '#8E8E93',
+        marginTop: spacing.lg,
+        marginBottom: spacing.md,
+    },
+    modalInput: {
+        backgroundColor: '#2C2C2E',
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        marginTop: spacing.xl,
+        gap: spacing.md,
+    },
+    modalButton: {
+        flex: 1,
+    },
+    iconGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+    },
+    iconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#2C2C2E',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    selectedIcon: {
+        backgroundColor: '#007AFF',
     },
 });
 
