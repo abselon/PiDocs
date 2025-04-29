@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Image, Dimensions, Alert, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, Image, Dimensions, Alert, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import { Text, useTheme, IconButton, Card, TextInput, Portal, Modal } from 'react-native-paper';
 import { spacing, typography } from '../../theme/theme';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import { Timestamp } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import CalendarPicker from 'react-native-calendar-picker';
+import CustomAlert from '../../components/CustomAlert';
 
 const DocumentDetailsScreen: React.FC = () => {
     const theme = useTheme();
@@ -20,7 +21,19 @@ const DocumentDetailsScreen: React.FC = () => {
     const [editingField, setEditingField] = useState<'name' | 'description' | 'expiryDate' | null>(null);
     const [tempValue, setTempValue] = useState('');
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [tempDate, setTempDate] = useState<Date | null>(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [debounceTimeout, setDebounceTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState<{
+        title: string;
+        message: string;
+        type: 'success' | 'error' | 'warning' | 'info';
+        onConfirm?: () => void;
+    }>({
+        title: '',
+        message: '',
+        type: 'info',
+    });
 
     useEffect(() => {
         const doc = documents.find(d => d.id === documentId);
@@ -36,29 +49,33 @@ const DocumentDetailsScreen: React.FC = () => {
         }
     }, [documentId, documents]);
 
+    const showAlert = (
+        title: string,
+        message: string,
+        type: 'success' | 'error' | 'warning' | 'info' = 'info',
+        onConfirm?: () => void
+    ) => {
+        setAlertConfig({ title, message, type, onConfirm });
+        setAlertVisible(true);
+    };
+
     const handleDelete = () => {
-        Alert.alert(
+        showAlert(
             'Delete Document',
             'Are you sure you want to delete this document? This action cannot be undone.',
-            [
-                {
-                    text: 'Cancel',
-                    style: 'cancel',
-                },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await deleteDocument(documentId);
-                            navigation.goBack();
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to delete document. Please try again.');
-                        }
-                    },
-                },
-            ],
-            { cancelable: true }
+            'warning',
+            async () => {
+                try {
+                    await deleteDocument(documentId);
+                    navigation.goBack();
+                } catch (error) {
+                    showAlert(
+                        'Error',
+                        'Failed to delete document. Please try again.',
+                        'error'
+                    );
+                }
+            }
         );
     };
 
@@ -66,14 +83,31 @@ const DocumentDetailsScreen: React.FC = () => {
         if (!document) return;
 
         try {
-            await updateDocument(documentId, {
+            setIsUpdating(true);
+            const updatedDocument = {
                 ...document,
                 [field]: value instanceof Date ? Timestamp.fromDate(value) : value
-            });
+            };
+
+            // Optimistically update local state
+            setDocument(updatedDocument);
+
+            // Update in the backend
+            await updateDocument(documentId, updatedDocument);
+
             setEditingField(null);
             setTempValue('');
         } catch (error) {
-            Alert.alert('Error', 'Failed to update document. Please try again.');
+            // Revert optimistic update on error
+            const doc = documents.find(d => d.id === documentId);
+            setDocument(doc || null);
+            showAlert(
+                'Error',
+                'Failed to update document. Please try again.',
+                'error'
+            );
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -83,19 +117,39 @@ const DocumentDetailsScreen: React.FC = () => {
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [4, 3],
-                quality: 1,
+                quality: 0.8, // Reduce quality to help with size
                 base64: true,
             });
 
             if (!result.canceled && result.assets[0].base64) {
-                await updateDocument(documentId, {
-                    ...document!,
-                    fileData: `data:image/jpeg;base64,${result.assets[0].base64}`,
-                    fileType: 'image/jpeg'
-                });
+                // Check file size (2MB limit)
+                const base64Size = result.assets[0].base64.length * 0.75; // Approximate size in bytes
+                const MAX_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+
+                if (base64Size > MAX_SIZE) {
+                    Alert.alert(
+                        'File Too Large',
+                        'The selected image is too large. Please choose an image smaller than 2MB.',
+                        [{ text: 'OK' }]
+                    );
+                    return;
+                }
+
+                setIsUpdating(true);
+                try {
+                    await updateDocument(documentId, {
+                        ...document!,
+                        fileData: `data:image/jpeg;base64,${result.assets[0].base64}`,
+                        fileType: 'image/jpeg'
+                    });
+                } catch (error) {
+                    Alert.alert('Error', 'Failed to update image. Please try again.');
+                } finally {
+                    setIsUpdating(false);
+                }
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to update image. Please try again.');
+            Alert.alert('Error', 'Failed to pick image. Please try again.');
         }
     };
 
@@ -214,7 +268,45 @@ const DocumentDetailsScreen: React.FC = () => {
             textAlign: 'center',
             color: theme.colors.onSurface,
         },
+        loadingOverlay: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1,
+        },
+        loadingText: {
+            color: theme.colors.onPrimary,
+            marginTop: spacing.sm,
+            ...typography.body,
+        },
     });
+
+    // Add debounced update function
+    const debouncedUpdate = useCallback((field: 'name' | 'description', value: string) => {
+        if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+        }
+
+        const timeout = setTimeout(() => {
+            handleUpdate(field, value);
+        }, 1000); // Increased to 1000ms delay after typing stops
+
+        setDebounceTimeout(timeout);
+    }, [debounceTimeout]);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceTimeout) {
+                clearTimeout(debounceTimeout);
+            }
+        };
+    }, [debounceTimeout]);
 
     if (!document) {
         return (
@@ -235,10 +327,25 @@ const DocumentDetailsScreen: React.FC = () => {
         if (!timestamp) return 'Not set';
         try {
             const date = timestamp.toDate();
-            return date.toLocaleDateString();
+            return date.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
         } catch (error) {
             console.error('Error formatting date:', error);
             return 'Invalid date';
+        }
+    };
+
+    // Add a helper function to safely convert Timestamp to Date
+    const getDateFromTimestamp = (timestamp: Timestamp | undefined): Date | undefined => {
+        if (!timestamp) return undefined;
+        try {
+            return timestamp.toDate();
+        } catch (error) {
+            console.error('Error converting timestamp to date:', error);
+            return undefined;
         }
     };
 
@@ -262,8 +369,15 @@ const DocumentDetailsScreen: React.FC = () => {
                 <TouchableOpacity
                     style={styles.imageContainer}
                     onPress={handleImageUpdate}
+                    disabled={isUpdating}
                 >
-                    {document.fileData ? (
+                    {isUpdating ? (
+                        <View style={styles.loadingOverlay}>
+                            <ActivityIndicator size="large" color={theme.colors.primary} />
+                            <Text style={styles.loadingText}>Updating image...</Text>
+                        </View>
+                    ) : null}
+                    {document?.fileData ? (
                         <Image
                             source={{
                                 uri: `data:${document.fileType};base64,${document.fileData.replace(/^data:.+;base64,/, '')}`
@@ -284,49 +398,61 @@ const DocumentDetailsScreen: React.FC = () => {
                     <Card.Content style={styles.mainContent}>
                         <TouchableOpacity
                             onPress={() => {
-                                setEditingField('name');
-                                setTempValue(document.name);
+                                if (!isUpdating) {
+                                    setEditingField('name');
+                                    setTempValue(document?.name || '');
+                                }
                             }}
                         >
                             {editingField === 'name' ? (
                                 <TextInput
                                     value={tempValue}
-                                    onChangeText={setTempValue}
-                                    onBlur={() => handleUpdate('name', tempValue)}
+                                    onChangeText={(text) => {
+                                        setTempValue(text);
+                                        debouncedUpdate('name', text);
+                                    }}
                                     autoFocus
                                     style={styles.documentName}
+                                    disabled={isUpdating}
                                 />
                             ) : (
-                                <Text style={styles.documentName}>{document.name}</Text>
+                                <Text style={styles.documentName}>{document?.name}</Text>
                             )}
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             onPress={() => {
-                                setEditingField('description');
-                                setTempValue(document.description || '');
+                                if (!isUpdating) {
+                                    setEditingField('description');
+                                    setTempValue(document?.description || '');
+                                }
                             }}
                         >
                             {editingField === 'description' ? (
                                 <TextInput
                                     value={tempValue}
-                                    onChangeText={setTempValue}
-                                    onBlur={() => handleUpdate('description', tempValue)}
+                                    onChangeText={(text) => {
+                                        setTempValue(text);
+                                        debouncedUpdate('description', text);
+                                    }}
                                     autoFocus
                                     multiline
                                     style={styles.documentDescription}
+                                    disabled={isUpdating}
                                 />
                             ) : (
                                 <Text style={styles.documentDescription}>
-                                    {document.description || 'No description'}
+                                    {document?.description || 'No description'}
                                 </Text>
                             )}
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             onPress={() => {
-                                setEditingField('expiryDate');
-                                setShowDatePicker(true);
+                                if (!isUpdating) {
+                                    setEditingField('expiryDate');
+                                    setShowDatePicker(true);
+                                }
                             }}
                         >
                             <View style={styles.expiryDateContainer}>
@@ -336,7 +462,7 @@ const DocumentDetailsScreen: React.FC = () => {
                                     style={styles.expiryDateIcon}
                                 />
                                 <Text style={styles.expiryDateText}>
-                                    {document.expiryDate ?
+                                    {document?.expiryDate ?
                                         `Expires on ${formatDate(document.expiryDate)}` :
                                         'Set expiry date'
                                     }
@@ -378,10 +504,16 @@ const DocumentDetailsScreen: React.FC = () => {
                         nextTitleStyle={{ color: theme.colors.primary }}
                         monthTitleStyle={{ color: theme.colors.onSurface }}
                         yearTitleStyle={{ color: theme.colors.onSurface }}
-                        selectedStartDate={document.expiryDate?.toDate()}
+                        selectedStartDate={getDateFromTimestamp(document?.expiryDate)}
                         onDateChange={(date) => {
-                            if (date) {
-                                const selectedDate = date.toDate();
+                            if (!date) return;
+
+                            try {
+                                // Check if date is a Moment object
+                                const selectedDate = typeof date === 'object' && 'toDate' in date
+                                    ? date.toDate()
+                                    : new Date(date);
+
                                 const now = new Date();
 
                                 if (selectedDate < now) {
@@ -391,11 +523,26 @@ const DocumentDetailsScreen: React.FC = () => {
 
                                 handleUpdate('expiryDate', selectedDate);
                                 setShowDatePicker(false);
+                            } catch (error) {
+                                console.error('Error processing date:', error);
+                                Alert.alert('Error', 'Invalid date selection');
                             }
                         }}
                     />
                 </Modal>
             </Portal>
+
+            <CustomAlert
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                onConfirm={() => {
+                    setAlertVisible(false);
+                    alertConfig.onConfirm?.();
+                }}
+                onCancel={() => setAlertVisible(false)}
+            />
         </View>
     );
 };

@@ -5,6 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { spacing, typography } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Timestamp } from 'firebase/firestore';
 
 interface Document {
     id: string;
@@ -15,6 +16,7 @@ interface Document {
     fileData?: string;
     fileType?: string;
     name?: string;
+    expiryDate?: Timestamp;
 }
 
 type RootStackParamList = {
@@ -69,10 +71,13 @@ const CategoryScreen: React.FC = () => {
         card: {
             borderRadius: 12,
             overflow: 'hidden',
+            height: 280,
+            backgroundColor: theme.colors.surface,
+            elevation: 2,
         },
         imageContainer: {
             width: '100%',
-            height: itemWidth * 1.2,
+            height: 160,
             backgroundColor: theme.colors.surfaceVariant,
             justifyContent: 'center',
             alignItems: 'center',
@@ -87,18 +92,29 @@ const CategoryScreen: React.FC = () => {
             color: theme.colors.primary,
         },
         cardContent: {
-            padding: spacing.sm,
+            padding: spacing.md,
+            height: 120,
+            justifyContent: 'space-between',
         },
         documentTitle: {
             fontSize: typography.body.fontSize,
             fontWeight: '500',
             color: theme.colors.onSurface,
-            marginTop: spacing.xs,
+            marginBottom: spacing.xs,
         },
         documentDescription: {
             fontSize: typography.caption.fontSize,
             color: theme.colors.onSurfaceVariant,
-            marginTop: spacing.xs,
+            marginBottom: spacing.xs,
+            flex: 1,
+        },
+        expiryDate: {
+            fontSize: typography.caption.fontSize,
+            color: theme.colors.error,
+        },
+        expiredDate: {
+            color: theme.colors.error,
+            fontWeight: 'bold',
         },
         emptyMessage: {
             ...typography.body,
@@ -114,42 +130,70 @@ const CategoryScreen: React.FC = () => {
         },
     });
 
-    const renderDocumentItem = ({ item }: { item: Document }) => (
-        <TouchableOpacity
-            style={styles.gridItem}
-            onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id })}
-        >
-            <Card style={styles.card}>
-                <View style={styles.imageContainer}>
-                    {item.fileData ? (
-                        <Image
-                            source={{
-                                uri: `data:${item.fileType};base64,${item.fileData.replace(/^data:.+;base64,/, '')}`
-                            }}
-                            style={styles.image}
-                            onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
-                        />
-                    ) : (
-                        <MaterialCommunityIcons
-                            name="file-document"
-                            size={40}
-                            style={styles.documentIcon}
-                        />
-                    )}
-                </View>
-                <Card.Content style={styles.cardContent}>
-                    <Text style={styles.documentTitle} numberOfLines={1}>
-                        {item.name || item.title}
-                    </Text>
-                    {item.description && (
-                        <Text style={styles.documentDescription} numberOfLines={2}>
-                            {item.description}
+    const renderDocumentItem = ({ item }: { item: Document }) => {
+        const formatDate = (timestamp: Timestamp | undefined) => {
+            if (!timestamp) return null;
+            try {
+                const date = timestamp.toDate();
+                return date.toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+            } catch (error) {
+                console.error('Error formatting date:', error);
+                return null;
+            }
+        };
+
+        const expiryDate = formatDate(item.expiryDate);
+        const isExpired = expiryDate && new Date(expiryDate.split('/').reverse().join('-')) < new Date();
+
+        return (
+            <TouchableOpacity
+                style={styles.gridItem}
+                onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id })}
+            >
+                <Card style={styles.card}>
+                    <View style={styles.imageContainer}>
+                        {item.fileData ? (
+                            <Image
+                                source={{
+                                    uri: `data:${item.fileType};base64,${item.fileData.replace(/^data:.+;base64,/, '')}`
+                                }}
+                                style={styles.image}
+                                onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
+                            />
+                        ) : (
+                            <MaterialCommunityIcons
+                                name="file-document"
+                                size={40}
+                                style={styles.documentIcon}
+                            />
+                        )}
+                    </View>
+                    <View style={styles.cardContent}>
+                        <Text style={styles.documentTitle} numberOfLines={1}>
+                            {item.name || item.title}
                         </Text>
-                    )}
-                </Card.Content>
-            </Card>
-        </TouchableOpacity>
-    );
+                        {item.description && (
+                            <Text style={styles.documentDescription} numberOfLines={2}>
+                                {item.description}
+                            </Text>
+                        )}
+                        {expiryDate && (
+                            <Text style={[
+                                styles.expiryDate,
+                                isExpired && styles.expiredDate
+                            ]} numberOfLines={1}>
+                                Expires: {expiryDate}
+                            </Text>
+                        )}
+                    </View>
+                </Card>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>

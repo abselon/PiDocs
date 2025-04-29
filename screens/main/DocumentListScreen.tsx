@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Category } from '../../types/document';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
+import CustomAlert from '../../components/CustomAlert';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,9 +22,37 @@ const DocumentListScreen: React.FC = () => {
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryIcon, setNewCategoryIcon] = useState<keyof typeof MaterialCommunityIcons.glyphMap>('folder');
     const [loading, setLoading] = useState(false);
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState<{
+        title: string;
+        message: string;
+        type: 'success' | 'error' | 'warning' | 'info';
+        onConfirm?: () => void;
+    }>({
+        title: '',
+        message: '',
+        type: 'info',
+    });
+
+    const showAlert = (
+        title: string,
+        message: string,
+        type: 'success' | 'error' | 'warning' | 'info' = 'info',
+        onConfirm?: () => void
+    ) => {
+        setAlertConfig({ title, message, type, onConfirm });
+        setAlertVisible(true);
+    };
 
     const handleCreateCategory = async () => {
-        if (!newCategoryName.trim()) return;
+        if (!newCategoryName.trim()) {
+            showAlert(
+                'Invalid Category Name',
+                'Please enter a valid category name.',
+                'warning'
+            );
+            return;
+        }
 
         try {
             setLoading(true);
@@ -35,8 +64,18 @@ const DocumentListScreen: React.FC = () => {
             });
             setShowAddCategoryModal(false);
             setNewCategoryName('');
+            showAlert(
+                'Success',
+                'Category created successfully!',
+                'success'
+            );
         } catch (err) {
             console.error('Error creating category:', err);
+            showAlert(
+                'Error',
+                'Failed to create category. Please try again.',
+                'error'
+            );
         } finally {
             setLoading(false);
         }
@@ -196,6 +235,18 @@ const DocumentListScreen: React.FC = () => {
                     </View>
                 </Modal>
             </Portal>
+
+            <CustomAlert
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                onConfirm={() => {
+                    setAlertVisible(false);
+                    alertConfig.onConfirm?.();
+                }}
+                onCancel={() => setAlertVisible(false)}
+            />
         </SafeAreaView>
     );
 };

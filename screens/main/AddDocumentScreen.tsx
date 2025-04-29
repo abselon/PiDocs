@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Modal as RNModal, Dimensions, Animated, StatusBar } from 'react-native';
 import { Text, Card, useTheme, Button, TextInput, Portal, Modal, ActivityIndicator, IconButton } from 'react-native-paper';
 import { spacing, typography, shadows } from '../../theme/theme';
@@ -14,6 +14,7 @@ import { Category, Document } from '../../types/document';
 import CalendarPicker from 'react-native-calendar-picker';
 import { Moment } from 'moment';
 import { Timestamp } from 'firebase/firestore';
+import CustomAlert from '../../components/CustomAlert';
 
 type Step = 'category' | 'upload' | 'metadata' | 'reminder';
 
@@ -56,7 +57,19 @@ const AddDocumentScreen: React.FC = () => {
         name: '',
         icon: 'file-document' as keyof typeof MaterialCommunityIcons.glyphMap,
     });
-    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const scaleAnim = useRef(new Animated.Value(0)).current;
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState<{
+        title: string;
+        message: string;
+        type: 'success' | 'error' | 'warning' | 'info';
+        onConfirm?: () => void;
+    }>({
+        title: '',
+        message: '',
+        type: 'info',
+    });
+    const [showSuccess, setShowSuccess] = useState(false);
 
     console.log('AddDocumentScreen: Current user:', user ? {
         uid: user.uid,
@@ -70,6 +83,17 @@ const AddDocumentScreen: React.FC = () => {
             setCurrentStep('upload');
         }
     }, [selectedCategory]);
+
+    useEffect(() => {
+        if (showSuccess) {
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                useNativeDriver: true,
+                tension: 50,
+                friction: 7,
+            }).start();
+        }
+    }, [showSuccess]);
 
     const pickDocument = async () => {
         try {
@@ -91,24 +115,86 @@ const AddDocumentScreen: React.FC = () => {
         }
     };
 
+    const showAlert = (
+        title: string,
+        message: string,
+        type: 'success' | 'error' | 'warning' | 'info' = 'info',
+        onConfirm?: () => void
+    ) => {
+        setAlertConfig({ title, message, type, onConfirm });
+        setAlertVisible(true);
+    };
+
+    const takePicture = async () => {
+        try {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+                showAlert(
+                    'Camera Access Required',
+                    'PiDocs needs camera access to capture documents. Please enable camera access in your device settings.',
+                    'warning',
+                    () => navigation.goBack()
+                );
+                return;
+            }
+
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+                base64: true,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                const asset = result.assets[0];
+                setDocument(prev => ({
+                    ...prev,
+                    file: {
+                        uri: asset.uri,
+                        name: `photo_${Date.now()}.jpg`,
+                        mimeType: 'image/jpeg',
+                        size: asset.fileSize || 0,
+                    },
+                    title: `Photo ${new Date().toLocaleDateString()}`,
+                }));
+                setCurrentStep('metadata');
+            }
+        } catch (err) {
+            showAlert(
+                'Camera Error',
+                'Failed to access camera. Please try again or use the file upload option instead.',
+                'error'
+            );
+        }
+    };
+
     const handleSubmit = async () => {
         if (!document.file || !selectedCategory) {
-            Alert.alert('Error', 'Please fill in all required fields');
+            showAlert(
+                'Missing Information',
+                'Please fill in all required fields before submitting.',
+                'warning'
+            );
             return;
         }
 
         if (!user) {
-            Alert.alert('Error', 'You must be logged in to add a document');
+            showAlert(
+                'Authentication Required',
+                'You must be logged in to add a document.',
+                'error'
+            );
             return;
         }
 
-        // Check file size (750KB limit to account for base64 overhead)
-        const MAX_SIZE = 750 * 1024; // 750KB
+        // Check file size (2MB limit)
+        const MAX_SIZE = 2 * 1024 * 1024; // 2MB
         if (document.file.size && document.file.size > MAX_SIZE) {
-            Alert.alert(
-                'Error',
-                'File size exceeds 750KB limit. Please choose a smaller file.',
-                [{ text: 'OK' }]
+            showAlert(
+                'File Too Large',
+                'The selected file exceeds the 2MB size limit. Please choose a smaller file.',
+                'warning'
             );
             return;
         }
@@ -133,16 +219,18 @@ const AddDocumentScreen: React.FC = () => {
 
             // Check if base64 data exceeds Firestore limit
             if (base64Data.length > 1024 * 1024) { // 1MB
-                Alert.alert(
-                    'Error',
-                    'File is too large after encoding. Please choose a smaller file.',
-                    [{ text: 'OK' }]
+                showAlert(
+                    'File Too Large',
+                    'The file is too large after encoding. Please choose a smaller file.'
                 );
                 return;
             }
 
             if (!document.file.name || !document.file.mimeType || !document.file.size) {
-                Alert.alert('Error', 'Invalid file data');
+                showAlert(
+                    'Invalid File',
+                    'The selected file appears to be invalid. Please try again.'
+                );
                 return;
             }
 
@@ -161,13 +249,15 @@ const AddDocumentScreen: React.FC = () => {
             };
 
             if (document.expiryDate) {
-                // Check if date is in reasonable range (between now and 100 years from now)
                 const now = new Date();
                 const maxDate = new Date();
                 maxDate.setFullYear(maxDate.getFullYear() + 100);
 
                 if (document.expiryDate < now || document.expiryDate > maxDate) {
-                    Alert.alert('Error', 'Date must be between now and 100 years from now');
+                    showAlert(
+                        'Invalid Date',
+                        'Please select a date between now and 100 years from now.'
+                    );
                     return;
                 }
 
@@ -178,35 +268,43 @@ const AddDocumentScreen: React.FC = () => {
             const documentId = await addDocument(newDocument);
             console.log('Document added successfully with ID:', documentId);
 
-            // Show success message and navigate back
-            Alert.alert(
-                'Success',
-                'Document added successfully',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => {
-                            // Navigate back to the previous screen
-                            navigation.goBack();
-                        }
-                    }
-                ]
-            );
+            setShowSuccess(true);
+
+            // Auto-redirect after 1.5 seconds
+            setTimeout(() => {
+                navigation.goBack();
+            }, 1500);
         } catch (err) {
             console.error('Document creation error:', err);
-            Alert.alert(
+            showAlert(
                 'Error',
                 'Failed to save document. Please try again.',
-                [{ text: 'OK' }]
+                'error'
             );
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCreateCategory = async () => {
+    // Create a reset function to clear category input state
+    const resetCategoryInput = useCallback(() => {
+        setNewCategoryName('');
+        setNewCategoryIcon('folder');
+    }, []);
+
+    // Handle modal dismiss
+    const handleModalDismiss = useCallback(() => {
+        setShowCategoryModal(false);
+        resetCategoryInput();
+    }, [resetCategoryInput]);
+
+    // Handle category creation
+    const handleCreateCategory = useCallback(async () => {
         if (!newCategoryName.trim()) {
-            setError('Category name cannot be empty');
+            showAlert(
+                'Invalid Category Name',
+                'Please enter a valid category name.'
+            );
             return;
         }
 
@@ -224,15 +322,17 @@ const AddDocumentScreen: React.FC = () => {
             const categoryId = await addCategory(newCategoryData);
             setSelectedCategory(categoryId);
             setShowCategoryModal(false);
-            setNewCategoryName('');
-            setNewCategoryIcon('folder');
+            resetCategoryInput();
         } catch (err) {
             console.error('Category creation error:', err);
-            setError('Failed to create category. Please try again.');
+            showAlert(
+                'Error',
+                'Failed to create category. Please try again.'
+            );
         } finally {
             setLoading(false);
         }
-    };
+    }, [newCategoryName, newCategoryIcon, addCategory, setSelectedCategory, showAlert]);
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('en-US', {
@@ -290,84 +390,61 @@ const AddDocumentScreen: React.FC = () => {
     };
 
     const renderCategoryStep = () => {
-        const screenWidth = Dimensions.get('window').width;
-        const isSmallScreen = screenWidth < 600;
-        const itemWidth = isSmallScreen ? '48%' : '30%';
-
         return (
             <View style={styles.stepContent}>
                 <Text style={[styles.stepTitle, { color: theme.colors.onSurface }]}>
                     Choose Category
                 </Text>
                 <View style={styles.categoryGrid}>
-                    <View style={[styles.categoryItem, { flexBasis: itemWidth }]}>
-                        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <View style={styles.categoryItem}>
+                        <TouchableOpacity
+                            style={[
+                                styles.categoryCard,
+                                {
+                                    backgroundColor: theme.colors.surface,
+                                }
+                            ]}
+                            onPress={() => setShowCategoryModal(true)}
+                        >
+                            <View style={styles.categoryIconContainer}>
+                                <MaterialCommunityIcons
+                                    name="folder-plus"
+                                    size={32}
+                                    color={theme.colors.primary}
+                                />
+                            </View>
+                            <Text style={[styles.categoryName, { color: theme.colors.primary }]} numberOfLines={2}>
+                                New Category
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                    {categories.map(category => (
+                        <View key={category.id} style={styles.categoryItem}>
                             <TouchableOpacity
                                 style={[
                                     styles.categoryCard,
                                     {
-                                        backgroundColor: theme.colors.surface,
+                                        backgroundColor: selectedCategory === category.id
+                                            ? theme.colors.primary + '20'
+                                            : theme.colors.surface,
+                                        borderColor: selectedCategory === category.id
+                                            ? theme.colors.primary
+                                            : 'transparent',
                                     }
                                 ]}
-                                onPress={() => {
-                                    Animated.sequence([
-                                        Animated.timing(scaleAnim, {
-                                            toValue: 0.95,
-                                            duration: 100,
-                                            useNativeDriver: true,
-                                        }),
-                                        Animated.timing(scaleAnim, {
-                                            toValue: 1,
-                                            duration: 100,
-                                            useNativeDriver: true,
-                                        }),
-                                    ]).start(() => {
-                                        setShowCategoryModal(true);
-                                    });
-                                }}
+                                onPress={() => handlePress(category.id)}
                             >
                                 <View style={styles.categoryIconContainer}>
                                     <MaterialCommunityIcons
-                                        name="folder-plus"
+                                        name={category.icon}
                                         size={32}
                                         color={theme.colors.primary}
                                     />
                                 </View>
-                                <Text style={[styles.categoryName, { color: theme.colors.primary }]} numberOfLines={2}>
-                                    New Category
+                                <Text style={[styles.categoryName, { color: theme.colors.onSurface }]} numberOfLines={2}>
+                                    {category.name}
                                 </Text>
                             </TouchableOpacity>
-                        </Animated.View>
-                    </View>
-                    {categories.map(category => (
-                        <View key={category.id} style={[styles.categoryItem, { flexBasis: itemWidth }]}>
-                            <Animated.View style={{ transform: [{ scale: selectedCategory === category.id ? scaleAnim : 1 }] }}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.categoryCard,
-                                        {
-                                            backgroundColor: selectedCategory === category.id
-                                                ? theme.colors.primary + '20'
-                                                : theme.colors.surface,
-                                            borderColor: selectedCategory === category.id
-                                                ? theme.colors.primary
-                                                : 'transparent',
-                                        }
-                                    ]}
-                                    onPress={() => handlePress(category.id)}
-                                >
-                                    <View style={styles.categoryIconContainer}>
-                                        <MaterialCommunityIcons
-                                            name={category.icon}
-                                            size={32}
-                                            color={theme.colors.primary}
-                                        />
-                                    </View>
-                                    <Text style={[styles.categoryName, { color: theme.colors.onSurface }]} numberOfLines={2}>
-                                        {category.name}
-                                    </Text>
-                                </TouchableOpacity>
-                            </Animated.View>
                         </View>
                     ))}
                 </View>
@@ -380,22 +457,41 @@ const AddDocumentScreen: React.FC = () => {
             <Text style={[styles.stepTitle, { color: theme.colors.onSurface }]}>
                 Upload Document
             </Text>
-            <TouchableOpacity
-                style={[styles.uploadCard, { backgroundColor: theme.colors.surface }]}
-                onPress={pickDocument}
-            >
-                <MaterialCommunityIcons
-                    name="file-upload"
-                    size={48}
-                    color={theme.colors.primary}
-                />
-                <Text style={[styles.uploadText, { color: theme.colors.onSurface }]}>
-                    Tap to upload a document
-                </Text>
-                <Text style={[styles.uploadSubtext, { color: theme.colors.onSurfaceVariant }]}>
-                    or drag and drop (desktop only)
-                </Text>
-            </TouchableOpacity>
+            <View style={styles.uploadOptions}>
+                <TouchableOpacity
+                    style={[styles.uploadCard, { backgroundColor: theme.colors.surface }]}
+                    onPress={pickDocument}
+                >
+                    <MaterialCommunityIcons
+                        name="file-upload"
+                        size={48}
+                        color={theme.colors.primary}
+                    />
+                    <Text style={[styles.uploadText, { color: theme.colors.onSurface }]}>
+                        Upload from Files
+                    </Text>
+                    <Text style={[styles.uploadSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                        Choose a file from your device
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.uploadCard, { backgroundColor: theme.colors.surface }]}
+                    onPress={takePicture}
+                >
+                    <MaterialCommunityIcons
+                        name="camera"
+                        size={48}
+                        color={theme.colors.primary}
+                    />
+                    <Text style={[styles.uploadText, { color: theme.colors.onSurface }]}>
+                        Take a Photo
+                    </Text>
+                    <Text style={[styles.uploadSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                        Use your camera to capture a document
+                    </Text>
+                </TouchableOpacity>
+            </View>
         </View>
     );
 
@@ -437,19 +533,15 @@ const AddDocumentScreen: React.FC = () => {
                         monthTitleStyle={{ color: theme.colors.onSurface }}
                         yearTitleStyle={{ color: theme.colors.onSurface }}
                         selectedStartDate={document.expiryDate}
-                        onDateChange={(date: Moment | null) => {
+                        onDateChange={(date: Date | null) => {
                             if (date) {
                                 try {
-                                    const timestamp = date.toDate().getTime();
-                                    const selectedDate = new Date(timestamp);
                                     const now = new Date();
-
-                                    if (selectedDate < now) {
+                                    if (date < now) {
                                         Alert.alert('Invalid Date', 'Please select a future date');
                                         return;
                                     }
-
-                                    setDocument(prev => ({ ...prev, expiryDate: selectedDate }));
+                                    setDocument(prev => ({ ...prev, expiryDate: date }));
                                     setShowDatePicker(false);
                                 } catch (error) {
                                     console.error('Error processing date:', error);
@@ -457,7 +549,6 @@ const AddDocumentScreen: React.FC = () => {
                                 }
                             }
                         }}
-                        style={styles.calendarStyle}
                     />
                 </Modal>
             </Portal>
@@ -628,11 +719,13 @@ const AddDocumentScreen: React.FC = () => {
         categoryGrid: {
             flexDirection: 'row',
             flexWrap: 'wrap',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-start',
+            gap: spacing.md,
             paddingHorizontal: spacing.lg,
             marginTop: spacing.md,
         },
         categoryItem: {
+            width: '47%',
             marginBottom: spacing.md,
         },
         categoryCard: {
@@ -661,7 +754,13 @@ const AddDocumentScreen: React.FC = () => {
             fontSize: 14,
             paddingHorizontal: spacing.xs,
         },
+        uploadOptions: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            gap: spacing.md,
+        },
         uploadCard: {
+            flex: 1,
             padding: spacing.xl,
             borderRadius: 12,
             alignItems: 'center',
@@ -670,10 +769,12 @@ const AddDocumentScreen: React.FC = () => {
         uploadText: {
             ...typography.body,
             marginTop: spacing.md,
+            textAlign: 'center',
         },
         uploadSubtext: {
             ...typography.caption,
             marginTop: spacing.xs,
+            textAlign: 'center',
         },
         inputCard: {
             marginBottom: spacing.md,
@@ -757,10 +858,6 @@ const AddDocumentScreen: React.FC = () => {
             textAlign: 'center',
             color: theme.colors.onSurface,
         },
-        calendarStyle: {
-            paddingTop: spacing.sm,
-            paddingBottom: spacing.lg,
-        },
         datePickerButton: {
             borderWidth: 1,
             borderRadius: 4,
@@ -775,6 +872,22 @@ const AddDocumentScreen: React.FC = () => {
         datePickerText: {
             flex: 1,
             fontSize: 16,
+        },
+        successOverlay: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+        },
+        successIcon: {
+            backgroundColor: theme.colors.surface,
+            borderRadius: 50,
+            padding: 20,
         },
     });
 
@@ -836,7 +949,7 @@ const AddDocumentScreen: React.FC = () => {
             <Portal>
                 <Modal
                     visible={showCategoryModal}
-                    onDismiss={() => setShowCategoryModal(false)}
+                    onDismiss={handleModalDismiss}
                     contentContainerStyle={[
                         styles.modal,
                         { backgroundColor: theme.colors.surface }
@@ -851,12 +964,20 @@ const AddDocumentScreen: React.FC = () => {
                         onChangeText={setNewCategoryName}
                         style={styles.modalInput}
                         mode="outlined"
+                        autoFocus={true}
+                        returnKeyType="done"
+                        blurOnSubmit={false}
+                        onSubmitEditing={() => {
+                            if (newCategoryName.trim()) {
+                                handleCreateCategory();
+                            }
+                        }}
                     />
                     <IconSelector />
                     <View style={styles.modalButtons}>
                         <Button
                             mode="outlined"
-                            onPress={() => setShowCategoryModal(false)}
+                            onPress={handleModalDismiss}
                             style={styles.modalButton}
                         >
                             Cancel
@@ -873,6 +994,37 @@ const AddDocumentScreen: React.FC = () => {
                     </View>
                 </Modal>
             </Portal>
+
+            {showSuccess && (
+                <View style={styles.successOverlay}>
+                    <Animated.View
+                        style={[
+                            styles.successIcon,
+                            {
+                                transform: [{ scale: scaleAnim }]
+                            }
+                        ]}
+                    >
+                        <MaterialCommunityIcons
+                            name="check-circle"
+                            size={80}
+                            color={theme.colors.primary}
+                        />
+                    </Animated.View>
+                </View>
+            )}
+
+            <CustomAlert
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                onConfirm={() => {
+                    setAlertVisible(false);
+                    alertConfig.onConfirm?.();
+                }}
+                onCancel={() => setAlertVisible(false)}
+            />
         </SafeAreaView>
     );
 };
