@@ -31,7 +31,7 @@ const CategoryScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation<any>();
     const route = useRoute();
-    const { documents, categories, deleteDocument, deleteCategory } = useDocuments();
+    const { documents, categories, deleteDocument, deleteCategory, updateDocument } = useDocuments();
     const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
     const [showAlert, setShowAlert] = useState(false);
     const [alertConfig, setAlertConfig] = useState<{
@@ -49,6 +49,7 @@ const CategoryScreen: React.FC = () => {
     const [loadingMessage, setLoadingMessage] = useState('');
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showMoveDialog, setShowMoveDialog] = useState(false);
+    const [showMoveSelectedDialog, setShowMoveSelectedDialog] = useState(false);
     const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [processMessage, setProcessMessage] = useState('');
@@ -142,6 +143,41 @@ const CategoryScreen: React.FC = () => {
         } finally {
             setIsProcessing(false);
             setShowMoveDialog(false);
+        }
+    };
+
+    const handleMoveSelected = async () => {
+        if (!selectedTargetCategory) return;
+
+        try {
+            setIsProcessing(true);
+            setProcessMessage('Moving documents...');
+
+            // Move each selected document to the new category
+            for (const docId of selectedDocuments) {
+                const document = documents.find(d => d.id === docId);
+                if (document) {
+                    await updateDocument(docId, { categoryId: selectedTargetCategory });
+                }
+            }
+
+            setSelectedDocuments([]);
+            setShowMoveSelectedDialog(false);
+            setAlertConfig({
+                title: 'Success',
+                message: 'Documents moved successfully',
+                type: 'success'
+            });
+            setShowAlert(true);
+        } catch (error) {
+            setAlertConfig({
+                title: 'Error',
+                message: 'Failed to move documents. Please try again.',
+                type: 'error'
+            });
+            setShowAlert(true);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -761,6 +797,12 @@ const CategoryScreen: React.FC = () => {
                         onPress={handleBulkDownload}
                         style={styles.actionButton}
                     />
+                    <IconButton
+                        icon="folder-move"
+                        size={24}
+                        onPress={() => setShowMoveSelectedDialog(true)}
+                        style={styles.actionButton}
+                    />
                 </View>
             ) : (
                 <FAB
@@ -943,6 +985,94 @@ const CategoryScreen: React.FC = () => {
                         <Button
                             mode="contained"
                             onPress={handleMoveConfirm}
+                            disabled={!selectedTargetCategory || isProcessing}
+                            loading={isProcessing}
+                        >
+                            Move Documents
+                        </Button>
+                    </View>
+                    {isProcessing && (
+                        <View style={styles.processingOverlay}>
+                            <View style={styles.processingContainer}>
+                                <ActivityIndicator size="large" color={theme.colors.primary} />
+                                <Text style={[styles.processingText, { color: theme.colors.onSurface }]}>
+                                    {processMessage}
+                                </Text>
+                                <Text style={[styles.processingSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                                    Please wait while we move your documents...
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+                </Modal>
+
+                <Modal
+                    visible={showMoveSelectedDialog}
+                    onDismiss={() => !isProcessing && setShowMoveSelectedDialog(false)}
+                    contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+                >
+                    <View style={styles.modalHeader}>
+                        <MaterialCommunityIcons
+                            name="folder-move"
+                            size={32}
+                            color={theme.colors.primary}
+                        />
+                        <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+                            Move Selected Documents
+                        </Text>
+                    </View>
+                    <Text style={[styles.modalSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+                        Choose where to move {selectedDocuments.length} document(s)
+                    </Text>
+                    <ScrollView style={styles.categoryList}>
+                        {categories
+                            .filter(c => c.id !== categoryId)
+                            .map(c => (
+                                <TouchableOpacity
+                                    key={c.id}
+                                    style={[
+                                        styles.categoryItem,
+                                        selectedTargetCategory === c.id && styles.selectedCategoryItem
+                                    ]}
+                                    onPress={() => !isProcessing && setSelectedTargetCategory(c.id)}
+                                    disabled={isProcessing}
+                                >
+                                    <View style={styles.categoryIconContainer}>
+                                        <MaterialCommunityIcons
+                                            name={c.icon}
+                                            size={24}
+                                            color={theme.colors.primary}
+                                        />
+                                    </View>
+                                    <View style={styles.categoryTextContainer}>
+                                        <Text style={[styles.categoryItemText, { color: theme.colors.onSurface }]}>
+                                            {c.name}
+                                        </Text>
+                                        <Text style={[styles.categoryItemCount, { color: theme.colors.onSurfaceVariant }]}>
+                                            {documents.filter(d => d.categoryId === c.id).length} documents
+                                        </Text>
+                                    </View>
+                                    {selectedTargetCategory === c.id && (
+                                        <MaterialCommunityIcons
+                                            name="check-circle"
+                                            size={24}
+                                            color={theme.colors.primary}
+                                        />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                    </ScrollView>
+                    <View style={styles.modalFooter}>
+                        <Button
+                            mode="text"
+                            onPress={() => setShowMoveSelectedDialog(false)}
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            mode="contained"
+                            onPress={handleMoveSelected}
                             disabled={!selectedTargetCategory || isProcessing}
                             loading={isProcessing}
                         >
