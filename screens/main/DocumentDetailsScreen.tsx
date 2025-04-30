@@ -424,6 +424,22 @@ const DocumentDetailsScreen: React.FC = () => {
         shareButton: {
             marginRight: spacing.xs,
         },
+        creationDateContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: theme.colors.surfaceVariant,
+            padding: spacing.md,
+            borderRadius: spacing.sm,
+            marginTop: spacing.md,
+        },
+        creationDateIcon: {
+            marginRight: spacing.sm,
+            color: theme.colors.primary,
+        },
+        creationDateText: {
+            fontSize: 16,
+            color: theme.colors.onSurfaceVariant,
+        },
     });
 
     // Add debounced update function
@@ -665,6 +681,17 @@ const DocumentDetailsScreen: React.FC = () => {
                                 </Text>
                             </View>
                         </TouchableOpacity>
+
+                        <View style={styles.creationDateContainer}>
+                            <MaterialCommunityIcons
+                                name="calendar-plus"
+                                size={24}
+                                style={styles.creationDateIcon}
+                            />
+                            <Text style={styles.creationDateText}>
+                                Added on {formatDate(document?.createdAt)}
+                            </Text>
+                        </View>
                     </Card.Content>
                 </Card>
             </ScrollView>

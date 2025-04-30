@@ -23,7 +23,7 @@ interface Document {
 }
 
 type RootStackParamList = {
-    DocumentDetail: { documentId: string };
+    DocumentDetails: { documentId: string };
     AddDocument: { categoryId: string };
 };
 
@@ -510,7 +510,7 @@ const CategoryScreen: React.FC = () => {
         if (selectedDocuments.length > 0) {
             handleLongPress(documentId);
         } else {
-            navigation.navigate('DocumentDetail', { documentId });
+            navigation.navigate('DocumentDetails', { documentId });
         }
     };
 

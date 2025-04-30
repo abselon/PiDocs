@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, FlatList, Image } from 'react-native';
 import { Text, useTheme, FAB, Searchbar, Portal, Modal, TextInput, Button } from 'react-native-paper';
 import { spacing } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Category } from '../../types/document';
+import { Category, Document } from '../../types/document';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import CustomAlert from '../../components/CustomAlert';
+import { Timestamp } from 'firebase/firestore';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -119,13 +120,16 @@ const DocumentListScreen: React.FC = () => {
         const filteredDocs = documents.filter(doc => {
             const matchesCategory = doc.categoryId === categoryId;
             const matchesSearch = searchQuery.toLowerCase().trim() === '' ||
-                doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (doc.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (doc.notes || '').toLowerCase().includes(searchQuery.toLowerCase());
+                (doc.name || doc.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (doc.description || '').toLowerCase().includes(searchQuery.toLowerCase());
             return matchesCategory && matchesSearch;
         });
         return filteredDocs.length;
     };
+
+    const filteredCategories = categories.filter(category => {
+        return searchQuery.trim() === '' || getDocumentCount(category.id) > 0;
+    });
 
     const getCategoryIcon = (category: Category) => {
         switch (category.name.toLowerCase()) {
@@ -169,6 +173,99 @@ const DocumentListScreen: React.FC = () => {
         );
     };
 
+    const getMatchingDocuments = () => {
+        if (!searchQuery.trim()) return [];
+
+        return documents.filter(doc => {
+            return (doc.name || doc.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (doc.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+        });
+    };
+
+    const highlightText = (text: string) => {
+        if (!searchQuery.trim() || !text) return text;
+
+        const parts = text.split(new RegExp(`(${searchQuery})`, 'gi'));
+        return parts.map((part, i) =>
+            part.toLowerCase() === searchQuery.toLowerCase() ? (
+                <Text key={i} style={styles.highlightedText}>
+                    {part}
+                </Text>
+            ) : (
+                part
+            )
+        );
+    };
+
+    const formatDate = (timestamp: Timestamp | undefined) => {
+        if (!timestamp) return 'Not set';
+        try {
+            const date = timestamp.toDate();
+            return date.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return 'Invalid date';
+        }
+    };
+
+    const renderSearchResult = ({ item }: { item: Document }) => {
+        const category = categories.find(c => c.id === item.categoryId);
+        const isExpired = item.expiryDate && new Date(item.expiryDate.toDate()) < new Date();
+
+        return (
+            <TouchableOpacity
+                style={styles.searchResultItem}
+                onPress={() => navigation.navigate('DocumentDetails', { documentId: item.id })}
+            >
+                <View style={styles.searchResultContent}>
+                    {item.fileData && item.fileType?.startsWith('image/') ? (
+                        <Image
+                            source={{
+                                uri: `data:${item.fileType};base64,${item.fileData.replace(/^data:.+;base64,/, '')}`
+                            }}
+                            style={styles.searchResultImage}
+                        />
+                    ) : (
+                        <View style={styles.searchResultIconContainer}>
+                            <MaterialCommunityIcons
+                                name={category?.icon || 'file-document'}
+                                size={24}
+                                color={theme.colors.primary}
+                            />
+                        </View>
+                    )}
+                    <View style={styles.searchResultText}>
+                        <Text style={styles.searchResultTitle}>
+                            {highlightText(item.name || item.title || '')}
+                        </Text>
+                        {item.description && (
+                            <Text style={styles.searchResultDescription} numberOfLines={2}>
+                                {highlightText(item.description)}
+                            </Text>
+                        )}
+                        <View style={styles.searchResultFooter}>
+                            <Text style={styles.searchResultCategory}>
+                                in {category?.name || 'Unknown Category'}
+                            </Text>
+                            {item.expiryDate && (
+                                <Text style={[
+                                    styles.searchResultExpiry,
+                                    isExpired && styles.expiredDate
+                                ]}>
+                                    Expires: {formatDate(item.expiryDate)}
+                                </Text>
+                            )}
+                        </View>
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: '#000000' }]}>
             <View style={styles.header}>
@@ -185,13 +282,29 @@ const DocumentListScreen: React.FC = () => {
                 />
             </View>
 
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.gridContainer}
-                showsVerticalScrollIndicator={false}
-            >
-                {categories.map(renderCategoryCard)}
-            </ScrollView>
+            {searchQuery.trim() ? (
+                <FlatList
+                    data={getMatchingDocuments()}
+                    renderItem={renderSearchResult}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.searchResultsContainer}
+                    ListEmptyComponent={
+                        <View style={styles.emptyResults}>
+                            <Text style={styles.emptyResultsText}>
+                                No documents found matching your criteria
+                            </Text>
+                        </View>
+                    }
+                />
+            ) : (
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.gridContainer}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {categories.map(renderCategoryCard)}
+                </ScrollView>
+            )}
 
             <FAB
                 icon="plus"
@@ -364,6 +477,80 @@ const styles = StyleSheet.create({
     selectedIcon: {
         backgroundColor: '#007AFF',
     },
+    searchResultsContainer: {
+        padding: spacing.lg,
+    },
+    searchResultItem: {
+        backgroundColor: '#1E1E1E',
+        borderRadius: 12,
+        marginBottom: spacing.md,
+        padding: spacing.md,
+    },
+    searchResultContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+    },
+    searchResultText: {
+        flex: 1,
+    },
+    searchResultTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#FFFFFF',
+        marginBottom: spacing.xs,
+    },
+    searchResultDescription: {
+        fontSize: 14,
+        color: '#8E8E93',
+        marginBottom: spacing.xs,
+    },
+    searchResultCategory: {
+        fontSize: 12,
+        color: '#007AFF',
+    },
+    highlightedText: {
+        backgroundColor: '#007AFF',
+        color: '#FFFFFF',
+        paddingHorizontal: 2,
+        borderRadius: 4,
+    },
+    emptyResults: {
+        padding: spacing.lg,
+        alignItems: 'center',
+    },
+    emptyResultsText: {
+        color: '#8E8E93',
+        fontSize: 16,
+        textAlign: 'center',
+    },
+    searchResultImage: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+        backgroundColor: '#2C2C2E',
+    },
+    searchResultIconContainer: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+        backgroundColor: '#2C2C2E',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    searchResultFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: spacing.xs,
+    },
+    searchResultExpiry: {
+        fontSize: 12,
+        color: '#8E8E93',
+    },
+    expiredDate: {
+        color: '#FF3B30',
+    }
 });
 
 export default DocumentListScreen; 
