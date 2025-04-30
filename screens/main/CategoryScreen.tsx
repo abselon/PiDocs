@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Platform, FlatList, Image, TouchableOpacity, Dimensions, StatusBar, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Platform, FlatList, Image, TouchableOpacity, Dimensions, StatusBar, ActivityIndicator, ScrollView } from 'react-native';
 import { Text, useTheme, IconButton, Card, FAB, Portal, Modal, Button } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { spacing, typography } from '../../theme/theme';
@@ -31,7 +31,7 @@ const CategoryScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation<any>();
     const route = useRoute();
-    const { documents, categories, deleteDocument } = useDocuments();
+    const { documents, categories, deleteDocument, deleteCategory } = useDocuments();
     const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
     const [showAlert, setShowAlert] = useState(false);
     const [alertConfig, setAlertConfig] = useState<{
@@ -47,6 +47,11 @@ const CategoryScreen: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [loadingMessage, setLoadingMessage] = useState('');
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [showMoveDialog, setShowMoveDialog] = useState(false);
+    const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processMessage, setProcessMessage] = useState('');
     const categoryId = (route.params as any)?.category;
 
     const category = categories.find(c => c.id === categoryId);
@@ -55,6 +60,90 @@ const CategoryScreen: React.FC = () => {
     const numColumns = 2;
     const screenWidth = Dimensions.get('window').width;
     const itemWidth = (screenWidth - (spacing.lg * 2) - spacing.md) / numColumns;
+
+    const isDefaultCategory = () => {
+        const defaultCategoryNames = [
+            'Passport',
+            'Driver License',
+            'ID Card',
+            'Insurance',
+            'Medical',
+            'Education',
+            'Work',
+            'Other'
+        ];
+        return category && defaultCategoryNames.includes(category.name);
+    };
+
+    const handleDeleteCategory = () => {
+        if (!category) return;
+
+        setAlertConfig({
+            title: 'Delete Category',
+            message: `What would you like to do with the documents in "${categoryName}"?`,
+            type: 'info',
+            onConfirm: () => {
+                setShowDeleteDialog(true);
+            }
+        });
+        setShowAlert(true);
+    };
+
+    const handleDeleteConfirm = async (action: 'delete' | 'move') => {
+        try {
+            setIsProcessing(true);
+            setProcessMessage(action === 'delete' ? 'Deleting documents...' : 'Preparing to move documents...');
+
+            if (action === 'delete') {
+                await deleteCategory(categoryId, 'delete');
+                setAlertConfig({
+                    title: 'Success',
+                    message: 'Category and documents deleted successfully',
+                    type: 'success'
+                });
+                setShowAlert(true);
+                navigation.goBack();
+            } else {
+                setShowMoveDialog(true);
+            }
+        } catch (error) {
+            setAlertConfig({
+                title: 'Error',
+                message: 'Failed to process category. Please try again.',
+                type: 'error'
+            });
+            setShowAlert(true);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleMoveConfirm = async () => {
+        if (!selectedTargetCategory) return;
+
+        try {
+            setIsProcessing(true);
+            setProcessMessage('Moving documents...');
+            await deleteCategory(categoryId, 'move', selectedTargetCategory);
+            setAlertConfig({
+                title: 'Success',
+                message: 'Documents moved successfully',
+                type: 'success'
+            });
+            setShowAlert(true);
+            navigation.goBack();
+        } catch (error) {
+            setAlertConfig({
+                title: 'Error',
+                message: 'Failed to move documents. Please try again.',
+                type: 'error'
+            });
+            setShowAlert(true);
+        } finally {
+            setIsProcessing(false);
+            setShowMoveDialog(false);
+        }
+    };
 
     const styles = StyleSheet.create({
         container: {
@@ -220,6 +309,141 @@ const CategoryScreen: React.FC = () => {
             marginTop: spacing.sm,
             color: theme.colors.onSurfaceVariant,
             fontSize: 14,
+        },
+        modal: {
+            margin: 20,
+            padding: 20,
+            borderRadius: 12,
+            maxHeight: '80%',
+            width: '90%',
+            alignSelf: 'center',
+        },
+        modalHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 16,
+            paddingBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+        },
+        modalTitle: {
+            fontSize: 20,
+            fontWeight: 'bold',
+            marginLeft: 12,
+            flex: 1,
+        },
+        modalSubtitle: {
+            fontSize: 16,
+            marginBottom: 24,
+            lineHeight: 24,
+        },
+        modalContent: {
+            gap: 12,
+            marginBottom: 20,
+        },
+        optionCard: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 16,
+            borderRadius: 8,
+            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(0, 0, 0, 0.1)',
+        },
+        optionTextContainer: {
+            flex: 1,
+            marginLeft: 12,
+            marginRight: 8,
+        },
+        optionTitle: {
+            fontSize: 16,
+            fontWeight: '500',
+        },
+        optionDescription: {
+            fontSize: 14,
+            marginTop: 4,
+            lineHeight: 20,
+        },
+        modalFooter: {
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            marginTop: 24,
+            gap: 8,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderTopColor: 'rgba(0, 0, 0, 0.1)',
+        },
+        categoryList: {
+            maxHeight: 300,
+            marginVertical: 16,
+            paddingRight: 8,
+        },
+        categoryItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 16,
+            borderRadius: 8,
+            marginBottom: 8,
+            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(0, 0, 0, 0.1)',
+        },
+        selectedCategoryItem: {
+            backgroundColor: 'rgba(0, 122, 255, 0.1)',
+            borderColor: theme.colors.primary,
+        },
+        categoryIconContainer: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: 'rgba(0, 122, 255, 0.1)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: 12,
+        },
+        categoryTextContainer: {
+            flex: 1,
+        },
+        categoryItemText: {
+            fontSize: 16,
+            fontWeight: '500',
+        },
+        categoryItemCount: {
+            fontSize: 14,
+            marginTop: 4,
+            color: 'rgba(0, 0, 0, 0.6)',
+        },
+        processingOverlay: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderRadius: 12,
+            zIndex: 1000,
+        },
+        processingContainer: {
+            alignItems: 'center',
+            padding: 24,
+            borderRadius: 12,
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            width: '80%',
+        },
+        processingText: {
+            marginTop: 16,
+            fontSize: 16,
+            textAlign: 'center',
+            lineHeight: 24,
+        },
+        processingSubtext: {
+            marginTop: 8,
+            fontSize: 14,
+            textAlign: 'center',
+            color: 'rgba(0, 0, 0, 0.6)',
+            lineHeight: 20,
         },
     });
 
@@ -486,6 +710,14 @@ const CategoryScreen: React.FC = () => {
                     }}
                 />
                 <Text style={styles.title}>{categoryName}</Text>
+                {!isDefaultCategory() && (
+                    <IconButton
+                        icon="delete"
+                        size={24}
+                        onPress={handleDeleteCategory}
+                        style={{ marginLeft: 'auto' }}
+                    />
+                )}
                 {selectedDocuments.length > 0 && (
                     <Text style={styles.selectedCount}>
                         {selectedDocuments.length} selected
@@ -557,6 +789,181 @@ const CategoryScreen: React.FC = () => {
                     </View>
                 </View>
             )}
+            <Portal>
+                <Modal
+                    visible={showDeleteDialog}
+                    onDismiss={() => !isProcessing && setShowDeleteDialog(false)}
+                    contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+                >
+                    <View style={styles.modalHeader}>
+                        <MaterialCommunityIcons
+                            name="alert-circle-outline"
+                            size={32}
+                            color={theme.colors.primary}
+                        />
+                        <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+                            Handle Documents
+                        </Text>
+                    </View>
+                    <Text style={[styles.modalSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+                        Choose what to do with the documents in "{categoryName}"
+                    </Text>
+                    <View style={styles.modalContent}>
+                        <View style={styles.optionCard}>
+                            <MaterialCommunityIcons
+                                name="delete"
+                                size={24}
+                                color={theme.colors.error}
+                            />
+                            <View style={styles.optionTextContainer}>
+                                <Text style={[styles.optionTitle, { color: theme.colors.onSurface }]}>
+                                    Delete All Documents
+                                </Text>
+                                <Text style={[styles.optionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                                    Permanently remove all documents in this category
+                                </Text>
+                            </View>
+                            <IconButton
+                                icon="chevron-right"
+                                size={24}
+                                onPress={() => handleDeleteConfirm('delete')}
+                                disabled={isProcessing}
+                            />
+                        </View>
+                        <View style={styles.optionCard}>
+                            <MaterialCommunityIcons
+                                name="folder-move"
+                                size={24}
+                                color={theme.colors.primary}
+                            />
+                            <View style={styles.optionTextContainer}>
+                                <Text style={[styles.optionTitle, { color: theme.colors.onSurface }]}>
+                                    Move to Another Category
+                                </Text>
+                                <Text style={[styles.optionDescription, { color: theme.colors.onSurfaceVariant }]}>
+                                    Transfer all documents to a different category
+                                </Text>
+                            </View>
+                            <IconButton
+                                icon="chevron-right"
+                                size={24}
+                                onPress={() => handleDeleteConfirm('move')}
+                                disabled={isProcessing}
+                            />
+                        </View>
+                    </View>
+                    <View style={styles.modalFooter}>
+                        <Button
+                            mode="text"
+                            onPress={() => setShowDeleteDialog(false)}
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </Button>
+                    </View>
+                    {isProcessing && (
+                        <View style={styles.processingOverlay}>
+                            <View style={styles.processingContainer}>
+                                <ActivityIndicator size="large" color={theme.colors.primary} />
+                                <Text style={[styles.processingText, { color: theme.colors.onSurface }]}>
+                                    {processMessage}
+                                </Text>
+                                <Text style={[styles.processingSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                                    Please wait while we process your request...
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+                </Modal>
+
+                <Modal
+                    visible={showMoveDialog}
+                    onDismiss={() => !isProcessing && setShowMoveDialog(false)}
+                    contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
+                >
+                    <View style={styles.modalHeader}>
+                        <MaterialCommunityIcons
+                            name="folder-move"
+                            size={32}
+                            color={theme.colors.primary}
+                        />
+                        <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+                            Select Target Category
+                        </Text>
+                    </View>
+                    <Text style={[styles.modalSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+                        Choose where to move the documents from "{categoryName}"
+                    </Text>
+                    <ScrollView style={styles.categoryList}>
+                        {categories
+                            .filter(c => c.id !== categoryId && !isDefaultCategory())
+                            .map(c => (
+                                <TouchableOpacity
+                                    key={c.id}
+                                    style={[
+                                        styles.categoryItem,
+                                        selectedTargetCategory === c.id && styles.selectedCategoryItem
+                                    ]}
+                                    onPress={() => !isProcessing && setSelectedTargetCategory(c.id)}
+                                    disabled={isProcessing}
+                                >
+                                    <View style={styles.categoryIconContainer}>
+                                        <MaterialCommunityIcons
+                                            name={c.icon}
+                                            size={24}
+                                            color={theme.colors.primary}
+                                        />
+                                    </View>
+                                    <View style={styles.categoryTextContainer}>
+                                        <Text style={[styles.categoryItemText, { color: theme.colors.onSurface }]}>
+                                            {c.name}
+                                        </Text>
+                                        <Text style={[styles.categoryItemCount, { color: theme.colors.onSurfaceVariant }]}>
+                                            {documents.filter(d => d.categoryId === c.id).length} documents
+                                        </Text>
+                                    </View>
+                                    {selectedTargetCategory === c.id && (
+                                        <MaterialCommunityIcons
+                                            name="check-circle"
+                                            size={24}
+                                            color={theme.colors.primary}
+                                        />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                    </ScrollView>
+                    <View style={styles.modalFooter}>
+                        <Button
+                            mode="text"
+                            onPress={() => setShowMoveDialog(false)}
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            mode="contained"
+                            onPress={handleMoveConfirm}
+                            disabled={!selectedTargetCategory || isProcessing}
+                            loading={isProcessing}
+                        >
+                            Move Documents
+                        </Button>
+                    </View>
+                    {isProcessing && (
+                        <View style={styles.processingOverlay}>
+                            <View style={styles.processingContainer}>
+                                <ActivityIndicator size="large" color={theme.colors.primary} />
+                                <Text style={[styles.processingText, { color: theme.colors.onSurface }]}>
+                                    {processMessage}
+                                </Text>
+                                <Text style={[styles.processingSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                                    Please wait while we move your documents...
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+                </Modal>
+            </Portal>
             <CustomAlert
                 visible={showAlert}
                 title={alertConfig.title}

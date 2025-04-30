@@ -18,6 +18,7 @@ interface DocumentContextType {
     refreshDocuments: () => Promise<void>;
     refreshCategories: () => Promise<void>;
     addCategory: (category: Omit<Category, 'id'>) => Promise<string>;
+    deleteCategory: (id: string, action: 'delete' | 'move', targetCategoryId?: string) => Promise<void>;
 }
 
 const DocumentContext = createContext<DocumentContextType>({
@@ -31,6 +32,7 @@ const DocumentContext = createContext<DocumentContextType>({
     refreshDocuments: async () => { },
     refreshCategories: async () => { },
     addCategory: async () => '',
+    deleteCategory: async () => { },
 });
 
 export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -246,6 +248,64 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
     };
 
+    const deleteCategory = async (id: string, action: 'delete' | 'move', targetCategoryId?: string) => {
+        if (!user) throw new Error('User not authenticated');
+
+        try {
+            setLoading(true);
+            setError(null);
+
+            // First, check if this is a default category
+            const category = categories.find(c => c.id === id);
+            if (!category) throw new Error('Category not found');
+
+            // Default categories have specific names
+            const defaultCategoryNames = [
+                'Passport',
+                'Driver License',
+                'ID Card',
+                'Insurance',
+                'Medical',
+                'Education',
+                'Work',
+                'Other'
+            ];
+
+            if (defaultCategoryNames.includes(category.name)) {
+                throw new Error('Cannot delete default categories');
+            }
+
+            // Get all documents in this category
+            const documentsInCategory = documents.filter(doc => doc.categoryId === id);
+
+            if (action === 'delete') {
+                // Delete all documents in the category
+                for (const document of documentsInCategory) {
+                    await deleteDoc(doc(db, 'documents', document.id));
+                }
+            } else if (action === 'move' && targetCategoryId) {
+                // Move all documents to the target category
+                for (const document of documentsInCategory) {
+                    await updateDoc(doc(db, 'documents', document.id), {
+                        categoryId: targetCategoryId
+                    });
+                }
+            }
+
+            // Delete the category
+            await deleteDoc(doc(db, 'categories', id));
+
+            await refreshCategories();
+            await refreshDocuments();
+        } catch (err) {
+            setError('Failed to delete category');
+            console.error(err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (user) {
             refreshDocuments();
@@ -264,7 +324,8 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             deleteDocument,
             refreshDocuments,
             refreshCategories,
-            addCategory
+            addCategory,
+            deleteCategory
         }}>
             {children}
         </DocumentContext.Provider>
