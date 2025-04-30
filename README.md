@@ -16,6 +16,7 @@ PiDocs is a React Native application that helps users securely store, organize, 
 - Node.js (v18 or higher)
 - npm or yarn
 - Expo CLI
+- EAS CLI (`npm install -g eas-cli`)
 - Firebase account
 - Android Studio (for Android development)
 - Xcode (for iOS development, macOS only)
@@ -63,6 +64,32 @@ npx expo start --android
 ```bash
 npx expo start --ios
 ```
+
+## Building APK with EAS
+
+1. Install EAS CLI if not already installed:
+```bash
+npm install -g eas-cli
+```
+
+2. Log in to your Expo account:
+```bash
+eas login
+```
+
+3. Configure the build:
+```bash
+eas build:configure
+```
+
+4. Build the APK:
+```bash
+eas build --platform android --profile preview
+```
+
+5. Download the APK:
+- After the build completes, you'll receive a link to download the APK
+- Scan the QR code with your Android device or use the provided URL
 
 ## Docker Development
 
@@ -212,6 +239,12 @@ service cloud.firestore {
 
 4. Set up Firebase Storage with appropriate security rules
 5. Add your Firebase configuration to `config/firebase.ts`
+
+## Security Notes
+
+- Firebase configuration files (`firebase.ts`, `google-services.json`, etc.) are excluded from version control
+- Keep your Firebase configuration secure and never commit it to the repository
+- Use environment variables for sensitive information
 
 ## Project Structure
 
