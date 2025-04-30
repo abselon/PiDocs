@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Image, Dimensions, Alert, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, Dimensions, Alert, TouchableOpacity, StatusBar, ActivityIndicator, Share, Platform } from 'react-native';
 import { Text, useTheme, IconButton, Card, TextInput, Portal, Modal } from 'react-native-paper';
 import { spacing, typography } from '../../theme/theme';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -10,6 +10,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import CalendarPicker from 'react-native-calendar-picker';
 import CustomAlert from '../../components/CustomAlert';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const DocumentDetailsScreen: React.FC = () => {
     const theme = useTheme();
@@ -161,6 +163,96 @@ const DocumentDetailsScreen: React.FC = () => {
         }
     };
 
+    const handleShare = async () => {
+        if (!document) return;
+
+        try {
+            const documentDetails = `Document Details:\n\nName: ${document.name}\nDescription: ${document.description || 'No description'}\nExpiry Date: ${document.expiryDate ? formatDate(document.expiryDate) : 'Not set'}`;
+
+            if (document.fileData && document.fileType.startsWith('image/')) {
+                // Create a temporary file for the image
+                const base64Data = document.fileData.startsWith('data:')
+                    ? document.fileData.split(',')[1]
+                    : document.fileData;
+
+                const filename = `${document.name.replace(/\s+/g, '_')}.${document.fileType.split('/')[1]}`;
+                const filepath = `${FileSystem.cacheDirectory}${filename}`;
+
+                // Write the base64 data to a file
+                await FileSystem.writeAsStringAsync(filepath, base64Data, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+
+                // Share the image
+                await Sharing.shareAsync(filepath, {
+                    mimeType: document.fileType,
+                    dialogTitle: `Share ${document.name}`,
+                    UTI: document.fileType,
+                });
+
+                // Share the details separately
+                await Share.share({
+                    title: document.name,
+                    message: documentDetails,
+                });
+
+                // Clean up the temporary file after sharing
+                setTimeout(async () => {
+                    try {
+                        await FileSystem.deleteAsync(filepath);
+                    } catch (error) {
+                        console.error('Error deleting temporary file:', error);
+                    }
+                }, 1000);
+            } else {
+                // For non-image files or when there's no file
+                const shareContent = {
+                    title: document.name,
+                    message: documentDetails,
+                };
+                await Share.share(shareContent);
+            }
+        } catch (error) {
+            console.error('Error sharing document:', error);
+            showAlert(
+                'Error',
+                'Failed to share document. Please try again.',
+                'error'
+            );
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!document?.fileData) return;
+
+        try {
+            const base64Data = document.fileData.startsWith('data:')
+                ? document.fileData.split(',')[1]
+                : document.fileData;
+
+            const filename = `${document.name.replace(/\s+/g, '_')}.${document.fileType.split('/')[1]}`;
+            const filepath = `${FileSystem.documentDirectory}${filename}`;
+
+            // Write the base64 data to a file
+            await FileSystem.writeAsStringAsync(filepath, base64Data, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            showAlert(
+                'Success',
+                `Image downloaded successfully to ${filepath}`,
+                'success'
+            );
+        } catch (error) {
+            console.error('Error downloading image:', error);
+            showAlert(
+                'Error',
+                'Failed to download image. Please try again.',
+                'error'
+            );
+        }
+    };
+
     const screenWidth = Dimensions.get('window').width;
     const imageHeight = screenWidth * 0.7;
 
@@ -177,11 +269,29 @@ const DocumentDetailsScreen: React.FC = () => {
             backgroundColor: theme.colors.surface,
             elevation: 2,
         },
-        backButton: {
-            marginRight: spacing.sm,
+        headerButtons: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: spacing.sm,
+        },
+        headerButton: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: theme.colors.surfaceVariant,
+            justifyContent: 'center',
+            alignItems: 'center',
+            margin: 0,
         },
         deleteButton: {
-            marginLeft: 'auto',
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: theme.colors.errorContainer,
+            justifyContent: 'center',
+            alignItems: 'center',
+            margin: 0,
         },
         title: {
             fontSize: 20,
@@ -311,6 +421,9 @@ const DocumentDetailsScreen: React.FC = () => {
             color: theme.colors.onSurfaceVariant,
             fontSize: 14,
         },
+        shareButton: {
+            marginRight: spacing.xs,
+        },
     });
 
     // Add debounced update function
@@ -342,7 +455,8 @@ const DocumentDetailsScreen: React.FC = () => {
                     <IconButton
                         icon="arrow-left"
                         onPress={() => navigation.goBack()}
-                        style={styles.backButton}
+                        style={styles.headerButton}
+                        iconColor={theme.colors.onSurface}
                     />
                     <Text style={styles.title}>Document Not Found</Text>
                 </View>
@@ -431,15 +545,35 @@ const DocumentDetailsScreen: React.FC = () => {
                 <IconButton
                     icon="arrow-left"
                     onPress={() => navigation.goBack()}
-                    style={styles.backButton}
+                    style={[styles.headerButton, { backgroundColor: 'transparent' }]}
+                    iconColor={theme.colors.onSurface}
                 />
                 <Text style={styles.title} numberOfLines={1}>{document.name}</Text>
-                <IconButton
-                    icon="delete"
-                    onPress={handleDelete}
-                    style={styles.deleteButton}
-                    iconColor={theme.colors.error}
-                />
+                <View style={styles.headerButtons}>
+                    {document.fileData && document.fileType.startsWith('image/') && (
+                        <IconButton
+                            icon="download"
+                            onPress={handleDownload}
+                            style={styles.headerButton}
+                            iconColor={theme.colors.primary}
+                            size={24}
+                        />
+                    )}
+                    <IconButton
+                        icon="share-variant"
+                        onPress={handleShare}
+                        style={styles.headerButton}
+                        iconColor={theme.colors.primary}
+                        size={24}
+                    />
+                    <IconButton
+                        icon="delete"
+                        onPress={handleDelete}
+                        style={styles.deleteButton}
+                        iconColor={theme.colors.error}
+                        size={24}
+                    />
+                </View>
             </View>
             <ScrollView style={styles.content}>
                 <TouchableOpacity
