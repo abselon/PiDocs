@@ -1,116 +1,70 @@
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import { Text, useTheme, IconButton } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Text, useTheme, Button } from 'react-native-paper';
 import { spacing } from '../../theme/theme';
+import { useUser } from '../../contexts/UserContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const SettingsScreen: React.FC = () => {
+const SettingsScreen = () => {
     const theme = useTheme();
-    const navigation = useNavigation();
+    const { logout } = useUser();
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+        } catch (error) {
+            console.error('Error signing out:', error);
+        }
+    };
 
     const styles = StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: theme.colors.background,
+            backgroundColor: '#000000',
         },
         header: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingTop: Platform.OS === 'ios' ? 60 : 40,
-            paddingHorizontal: spacing.lg,
-            paddingBottom: spacing.md,
+            padding: spacing.lg,
         },
         title: {
-            fontSize: 24,
+            fontSize: 34,
             fontWeight: 'bold',
-            color: theme.colors.onBackground,
-            marginLeft: spacing.md,
+            color: '#FFFFFF',
+            marginBottom: spacing.xs,
         },
-        content: {
-            flex: 1,
-            paddingHorizontal: spacing.lg,
-        },
-        settingItem: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingVertical: spacing.md,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.surfaceVariant,
-        },
-        settingText: {
+        subtitle: {
             fontSize: 16,
-            color: theme.colors.onBackground,
-            flex: 1,
-            marginLeft: spacing.md,
+            color: '#8E8E93',
+            marginBottom: spacing.xl,
+        },
+        logoutButton: {
+            marginHorizontal: spacing.lg,
+            marginBottom: spacing.xl,
+            backgroundColor: '#FF3B30',
+        },
+        logoutButtonText: {
+            color: '#FFFFFF',
+            fontWeight: '600',
         },
     });
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <IconButton
-                    icon="arrow-left"
-                    size={24}
-                    onPress={() => navigation.goBack()}
-                />
-                <Text style={styles.title}>Settings</Text>
-            </View>
-            <View style={styles.content}>
-                <View style={styles.settingItem}>
-                    <MaterialCommunityIcons
-                        name="theme-light-dark"
-                        size={24}
-                        color={theme.colors.primary}
-                    />
-                    <Text style={styles.settingText}>Theme</Text>
-                    <IconButton
-                        icon="chevron-right"
-                        size={24}
-                        iconColor={theme.colors.onSurfaceVariant}
-                    />
+        <SafeAreaView style={styles.container}>
+            <ScrollView>
+                <View style={styles.header}>
+                    <Text style={styles.title}>Settings</Text>
+                    <Text style={styles.subtitle}>Manage your account settings</Text>
                 </View>
-                <View style={styles.settingItem}>
-                    <MaterialCommunityIcons
-                        name="bell-outline"
-                        size={24}
-                        color={theme.colors.primary}
-                    />
-                    <Text style={styles.settingText}>Notifications</Text>
-                    <IconButton
-                        icon="chevron-right"
-                        size={24}
-                        iconColor={theme.colors.onSurfaceVariant}
-                    />
-                </View>
-                <View style={styles.settingItem}>
-                    <MaterialCommunityIcons
-                        name="shield-check-outline"
-                        size={24}
-                        color={theme.colors.primary}
-                    />
-                    <Text style={styles.settingText}>Security</Text>
-                    <IconButton
-                        icon="chevron-right"
-                        size={24}
-                        iconColor={theme.colors.onSurfaceVariant}
-                    />
-                </View>
-                <View style={styles.settingItem}>
-                    <MaterialCommunityIcons
-                        name="information-outline"
-                        size={24}
-                        color={theme.colors.primary}
-                    />
-                    <Text style={styles.settingText}>About</Text>
-                    <IconButton
-                        icon="chevron-right"
-                        size={24}
-                        iconColor={theme.colors.onSurfaceVariant}
-                    />
-                </View>
-            </View>
-        </View>
+
+                <Button
+                    mode="contained"
+                    onPress={handleLogout}
+                    style={styles.logoutButton}
+                    labelStyle={styles.logoutButtonText}
+                >
+                    Logout
+                </Button>
+            </ScrollView>
+        </SafeAreaView>
     );
 };
 
