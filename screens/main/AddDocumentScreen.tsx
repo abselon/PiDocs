@@ -284,7 +284,7 @@ const AddDocumentScreen: React.FC = () => {
                 newDocument.expiryDate = Timestamp.fromDate(document.expiryDate);
             }
 
-            console.log('Attempting to add document to Firestore...');
+            console.log('Attempting to add document...');
             const documentId = await addDocument(newDocument);
             console.log('Document added successfully with ID:', documentId);
 
@@ -296,6 +296,7 @@ const AddDocumentScreen: React.FC = () => {
             }, 1500);
         } catch (err) {
             console.error('Document creation error:', err);
+            setError('Failed to save document. Please try again.');
             showAlert(
                 'Error',
                 'Failed to save document. Please try again.',

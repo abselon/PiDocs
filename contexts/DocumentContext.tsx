@@ -208,15 +208,25 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             } else {
                 const newDoc: DocumentWithStatus = {
                     ...document,
-                    id: Date.now().toString(),
+                    id: `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     userId: user.uid,
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now(),
                     status: calculateStatus(document.expiryDate)
                 };
+
                 const updatedDocs = [...documents, newDoc];
                 setDocuments(updatedDocs);
-                await saveOfflineData(updatedDocs, categories);
+
+                try {
+                    await saveOfflineData(updatedDocs, categories);
+                    console.log('Document saved offline successfully');
+                } catch (storageError) {
+                    console.error('Error saving document to AsyncStorage:', storageError);
+                    setDocuments(documents);
+                    throw new Error('Failed to save document offline');
+                }
+
                 return newDoc.id;
             }
         } catch (error) {
@@ -236,6 +246,10 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 });
                 await refreshDocuments();
             } else {
+                // Create a backup of current documents
+                const currentDocs = [...documents];
+
+                // Optimistically update local state
                 const updatedDocs = documents.map(doc =>
                     doc.id === id
                         ? {
@@ -247,7 +261,16 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                         : doc
                 );
                 setDocuments(updatedDocs);
-                await saveOfflineData(updatedDocs, categories);
+
+                try {
+                    await saveOfflineData(updatedDocs, categories);
+                    console.log('Document updated offline successfully');
+                } catch (storageError) {
+                    console.error('Error saving document to AsyncStorage:', storageError);
+                    // Revert to previous state if save fails
+                    setDocuments(currentDocs);
+                    throw new Error('Failed to save document offline');
+                }
             }
         } catch (error) {
             console.error('Error updating document:', error);
@@ -263,9 +286,22 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 await deleteDoc(doc(db, 'documents', id));
                 await refreshDocuments();
             } else {
+                // Create a backup of current documents
+                const currentDocs = [...documents];
+
+                // Optimistically update local state
                 const updatedDocs = documents.filter(doc => doc.id !== id);
                 setDocuments(updatedDocs);
-                await saveOfflineData(updatedDocs, categories);
+
+                try {
+                    await saveOfflineData(updatedDocs, categories);
+                    console.log('Document deleted offline successfully');
+                } catch (storageError) {
+                    console.error('Error saving document deletion to AsyncStorage:', storageError);
+                    // Revert to previous state if save fails
+                    setDocuments(currentDocs);
+                    throw new Error('Failed to delete document offline');
+                }
             }
         } catch (error) {
             console.error('Error deleting document:', error);
@@ -287,17 +323,31 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 await refreshCategories();
                 return catRef.id;
             } else {
+                // Create a backup of current categories
+                const currentCats = [...categories];
+
                 const newCat: Category = {
                     ...category,
-                    id: Date.now().toString(),
+                    id: `offline_cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     userId: user.uid,
                     createdAt: Timestamp.now(),
                     updatedAt: Timestamp.now()
                 };
+
+                // Optimistically update local state
                 const updatedCats = [...categories, newCat];
                 setCategories(updatedCats);
-                await saveOfflineData(documents, updatedCats);
-                return newCat.id;
+
+                try {
+                    await saveOfflineData(documents, updatedCats);
+                    console.log('Category added offline successfully');
+                    return newCat.id;
+                } catch (storageError) {
+                    console.error('Error saving category to AsyncStorage:', storageError);
+                    // Revert to previous state if save fails
+                    setCategories(currentCats);
+                    throw new Error('Failed to save category offline');
+                }
             }
         } catch (error) {
             console.error('Error adding category:', error);
