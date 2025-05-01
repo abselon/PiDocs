@@ -53,6 +53,7 @@ const CategoryScreen: React.FC = () => {
     const [selectedTargetCategory, setSelectedTargetCategory] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [processMessage, setProcessMessage] = useState('');
+    const [isGridView, setIsGridView] = useState(true);
     const categoryId = (route.params as any)?.category;
 
     const category = categories.find(c => c.id === categoryId);
@@ -481,6 +482,39 @@ const CategoryScreen: React.FC = () => {
             color: 'rgba(0, 0, 0, 0.6)',
             lineHeight: 20,
         },
+        headerRight: {
+            flexDirection: 'row',
+            marginLeft: 'auto',
+        },
+        listContainer: {
+            padding: spacing.lg,
+        },
+        listItem: {
+            marginBottom: spacing.md,
+            borderRadius: 12,
+            backgroundColor: theme.colors.surface,
+        },
+        listItemContent: {
+            flexDirection: 'row',
+            padding: spacing.md,
+        },
+        listItemImageContainer: {
+            width: 60,
+            height: 60,
+            borderRadius: 8,
+            backgroundColor: theme.colors.surfaceVariant,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginRight: spacing.md,
+        },
+        listItemImage: {
+            width: 60,
+            height: 60,
+            borderRadius: 8,
+        },
+        listItemTextContainer: {
+            flex: 1,
+        },
     });
 
     const formatDate = (timestamp: Timestamp | undefined) => {
@@ -675,6 +709,63 @@ const CategoryScreen: React.FC = () => {
     const renderDocumentItem = ({ item }: { item: Document }) => {
         const isSelected = selectedDocuments.includes(item.id);
 
+        if (!isGridView) {
+            return (
+                <TouchableOpacity
+                    style={[styles.listItem, isSelected && styles.selectedItem]}
+                    onPress={() => handlePress(item.id)}
+                    onLongPress={() => handleLongPress(item.id)}
+                >
+                    <View style={styles.listItemContent}>
+                        <View style={styles.listItemImageContainer}>
+                            {item.fileData ? (
+                                <Image
+                                    source={{
+                                        uri: `data:${item.fileType};base64,${item.fileData.replace(/^data:.+;base64,/, '')}`
+                                    }}
+                                    style={styles.listItemImage}
+                                    onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
+                                />
+                            ) : (
+                                <MaterialCommunityIcons
+                                    name="file-document"
+                                    size={40}
+                                    style={styles.documentIcon}
+                                />
+                            )}
+                            {isSelected && (
+                                <View style={styles.selectionIndicator}>
+                                    <MaterialCommunityIcons
+                                        name="check-circle"
+                                        size={24}
+                                        color={theme.colors.primary}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                        <View style={styles.listItemTextContainer}>
+                            <Text style={styles.documentTitle} numberOfLines={1}>
+                                {item.name || item.title}
+                            </Text>
+                            {item.description && (
+                                <Text style={styles.documentDescription} numberOfLines={2}>
+                                    {item.description}
+                                </Text>
+                            )}
+                            {item.expiryDate && (
+                                <Text style={[
+                                    styles.expiryDate,
+                                    new Date(item.expiryDate.toDate()) < new Date() && styles.expiredDate
+                                ]} numberOfLines={1}>
+                                    Expires: {formatDate(item.expiryDate)}
+                                </Text>
+                            )}
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            );
+        }
+
         return (
             <TouchableOpacity
                 style={[styles.gridItem, isSelected && styles.selectedItem]}
@@ -746,14 +837,21 @@ const CategoryScreen: React.FC = () => {
                     }}
                 />
                 <Text style={styles.title}>{categoryName}</Text>
-                {!isDefaultCategory() && (
+                <View style={styles.headerRight}>
+                    {!isDefaultCategory() && (
+                        <IconButton
+                            icon="delete"
+                            size={24}
+                            onPress={handleDeleteCategory}
+                        />
+                    )}
                     <IconButton
-                        icon="delete"
+                        icon={isGridView ? 'view-grid' : 'format-list-bulleted'}
                         size={24}
-                        onPress={handleDeleteCategory}
-                        style={{ marginLeft: 'auto' }}
+                        onPress={() => setIsGridView(!isGridView)}
+                        iconColor="#007AFF"
                     />
-                )}
+                </View>
                 {selectedDocuments.length > 0 && (
                     <Text style={styles.selectedCount}>
                         {selectedDocuments.length} selected
@@ -762,13 +860,14 @@ const CategoryScreen: React.FC = () => {
             </View>
             {categoryDocuments.length > 0 ? (
                 <FlatList
+                    key={isGridView ? 'grid' : 'list'}
                     data={categoryDocuments}
                     keyExtractor={item => item.id}
-                    numColumns={numColumns}
-                    contentContainerStyle={styles.gridContainer}
+                    numColumns={isGridView ? numColumns : 1}
+                    contentContainerStyle={isGridView ? styles.gridContainer : styles.listContainer}
                     renderItem={renderDocumentItem}
                     showsVerticalScrollIndicator={false}
-                    columnWrapperStyle={{ justifyContent: 'space-between' }}
+                    columnWrapperStyle={isGridView ? { justifyContent: 'space-between' } : undefined}
                 />
             ) : (
                 <View style={styles.content}>

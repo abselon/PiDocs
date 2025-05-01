@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, FlatList, Image } from 'react-native';
-import { Text, useTheme, FAB, Searchbar, Portal, Modal, TextInput, Button } from 'react-native-paper';
+import { Text, useTheme, FAB, Searchbar, Portal, Modal, TextInput, Button, IconButton } from 'react-native-paper';
 import { spacing } from '../../theme/theme';
 import { useDocuments } from '../../contexts/DocumentContext';
 import { useNavigation } from '@react-navigation/native';
@@ -34,6 +34,7 @@ const DocumentListScreen: React.FC = () => {
         message: '',
         type: 'info',
     });
+    const [isGridView, setIsGridView] = useState(true);
 
     const showAlert = (
         title: string,
@@ -173,6 +174,36 @@ const DocumentListScreen: React.FC = () => {
         );
     };
 
+    const renderCategoryListItem = (category: Category) => {
+        const documentCount = getDocumentCount(category.id);
+        return (
+            <TouchableOpacity
+                key={category.id}
+                style={[styles.categoryListItem, { backgroundColor: '#1E1E1E' }]}
+                onPress={() => navigation.navigate('Categories', { category: category.id })}
+            >
+                <View style={[styles.iconContainer, { backgroundColor: '#007AFF' }]}>
+                    <MaterialCommunityIcons
+                        name={getCategoryIcon(category)}
+                        size={24}
+                        color="#FFFFFF"
+                    />
+                </View>
+                <View style={styles.listItemContent}>
+                    <Text style={styles.categoryName}>{category.name}</Text>
+                    <Text style={styles.documentCount}>
+                        {documentCount} document{documentCount !== 1 ? 's' : ''}
+                    </Text>
+                </View>
+                <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={24}
+                    color="#8E8E93"
+                />
+            </TouchableOpacity>
+        );
+    };
+
     const getMatchingDocuments = () => {
         if (!searchQuery.trim()) return [];
 
@@ -269,7 +300,16 @@ const DocumentListScreen: React.FC = () => {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: '#000000' }]}>
             <View style={styles.header}>
-                <Text style={styles.title}>Browse</Text>
+                <View style={styles.headerTop}>
+                    <Text style={styles.title}>Browse</Text>
+                    <IconButton
+                        icon={isGridView ? 'view-grid' : 'format-list-bulleted'}
+                        size={24}
+                        onPress={() => setIsGridView(!isGridView)}
+                        style={styles.layoutToggle}
+                        iconColor="#007AFF"
+                    />
+                </View>
                 <Text style={styles.subtitle}>All your documents by category</Text>
                 <Searchbar
                     placeholder="Search documents"
@@ -282,7 +322,7 @@ const DocumentListScreen: React.FC = () => {
                 />
             </View>
 
-            {searchQuery.trim() ? (
+            {searchQuery ? (
                 <FlatList
                     data={getMatchingDocuments()}
                     renderItem={renderSearchResult}
@@ -296,13 +336,21 @@ const DocumentListScreen: React.FC = () => {
                         </View>
                     }
                 />
-            ) : (
+            ) : isGridView ? (
                 <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={styles.gridContainer}
                     showsVerticalScrollIndicator={false}
                 >
                     {categories.map(renderCategoryCard)}
+                </ScrollView>
+            ) : (
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {categories.map(renderCategoryListItem)}
                 </ScrollView>
             )}
 
@@ -372,6 +420,11 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: '#1E1E1E',
+    },
+    headerTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     title: {
         fontSize: 34,
@@ -550,7 +603,24 @@ const styles = StyleSheet.create({
     },
     expiredDate: {
         color: '#FF3B30',
-    }
+    },
+    layoutToggle: {
+        margin: 0,
+    },
+    listContainer: {
+        padding: spacing.lg,
+    },
+    categoryListItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: spacing.lg,
+        borderRadius: 16,
+        marginBottom: spacing.md,
+    },
+    listItemContent: {
+        flex: 1,
+        marginLeft: spacing.md,
+    },
 });
 
 export default DocumentListScreen; 
