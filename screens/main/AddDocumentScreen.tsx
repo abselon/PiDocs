@@ -9,12 +9,13 @@ import { useUser } from '../../contexts/UserContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Category, Document } from '../../types/document';
 import CalendarPicker from 'react-native-calendar-picker';
 import { Moment } from 'moment';
 import { Timestamp } from 'firebase/firestore';
 import CustomAlert from '../../components/CustomAlert';
+import { RootStackParamList } from '../../navigation/types';
 
 type Step = 'category' | 'upload' | 'metadata' | 'reminder';
 
@@ -31,14 +32,20 @@ interface CategoryForm {
     icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }
 
+interface AddDocumentScreenParams {
+    categoryId?: string;
+}
+
+type AddDocumentScreenRouteProp = RouteProp<RootStackParamList, 'AddDocument'>;
+
 const AddDocumentScreen: React.FC = () => {
     const theme = useTheme();
     const navigation = useNavigation();
-    const route = useRoute();
+    const route = useRoute<AddDocumentScreenRouteProp>();
     const { categories, addDocument, addCategory } = useDocuments();
     const { user } = useUser();
     const [currentStep, setCurrentStep] = useState<Step>('category');
-    const [selectedCategory, setSelectedCategory] = useState<string>(route.params?.categoryId || '');
+    const [selectedCategory, setSelectedCategory] = useState<string>((route.params as unknown as AddDocumentScreenParams)?.categoryId || '');
     const [document, setDocument] = useState<DocumentForm>({
         title: '',
         name: '',
@@ -120,12 +127,37 @@ const AddDocumentScreen: React.FC = () => {
                     return;
                 }
 
-                setDocument(prev => ({
-                    ...prev,
-                    file: result.assets[0],
-                    title: result.assets[0].name,
-                }));
-                setCurrentStep('metadata');
+                // If it's an image, use ImagePicker to allow optional cropping
+                if (result.assets[0].mimeType?.startsWith('image/')) {
+                    const imageResult = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsEditing: true,
+                        quality: 0.8,
+                        base64: true,
+                    });
+
+                    if (!imageResult.canceled && imageResult.assets[0]) {
+                        setDocument(prev => ({
+                            ...prev,
+                            file: {
+                                uri: imageResult.assets[0].uri,
+                                name: result.assets[0].name,
+                                mimeType: 'image/jpeg',
+                                size: imageResult.assets[0].fileSize || 0,
+                            },
+                            title: result.assets[0].name,
+                        }));
+                        setCurrentStep('metadata');
+                    }
+                } else {
+                    // For non-image files, use the original document picker result
+                    setDocument(prev => ({
+                        ...prev,
+                        file: result.assets[0],
+                        title: result.assets[0].name,
+                    }));
+                    setCurrentStep('metadata');
+                }
             }
         } catch (err) {
             showAlert(
@@ -161,7 +193,6 @@ const AddDocumentScreen: React.FC = () => {
             const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
-                aspect: [4, 3],
                 quality: 0.8,
                 base64: true,
             });
@@ -553,15 +584,16 @@ const AddDocumentScreen: React.FC = () => {
                         monthTitleStyle={{ color: theme.colors.onSurface }}
                         yearTitleStyle={{ color: theme.colors.onSurface }}
                         selectedStartDate={document.expiryDate}
-                        onDateChange={(date: Date | null) => {
+                        onDateChange={(date: Moment | null) => {
                             if (date) {
                                 try {
+                                    const selectedDate = date.toDate();
                                     const now = new Date();
-                                    if (date < now) {
+                                    if (selectedDate < now) {
                                         Alert.alert('Invalid Date', 'Please select a future date');
                                         return;
                                     }
-                                    setDocument(prev => ({ ...prev, expiryDate: date }));
+                                    setDocument(prev => ({ ...prev, expiryDate: selectedDate }));
                                     setShowDatePicker(false);
                                 } catch (error) {
                                     console.error('Error processing date:', error);

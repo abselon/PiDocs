@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Image, Dimensions, Alert, TouchableOpacity, StatusBar, ActivityIndicator, Share, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, Dimensions, Alert, TouchableOpacity, StatusBar, ActivityIndicator, Share, Platform, Keyboard } from 'react-native';
 import { Text, useTheme, IconButton, Card, TextInput, Portal, Modal } from 'react-native-paper';
 import { spacing, typography } from '../../theme/theme';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -24,7 +24,6 @@ const DocumentDetailsScreen: React.FC = () => {
     const [tempValue, setTempValue] = useState('');
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
-    const [debounceTimeout, setDebounceTimeout] = useState<NodeJS.Timeout | null>(null);
     const [alertVisible, setAlertVisible] = useState(false);
     const [alertConfig, setAlertConfig] = useState<{
         title: string;
@@ -118,7 +117,6 @@ const DocumentDetailsScreen: React.FC = () => {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
-                aspect: [4, 3],
                 quality: 0.8,
                 base64: true,
             });
@@ -442,27 +440,34 @@ const DocumentDetailsScreen: React.FC = () => {
         },
     });
 
-    // Add debounced update function
-    const debouncedUpdate = useCallback((field: 'name' | 'description', value: string) => {
-        if (debounceTimeout) {
-            clearTimeout(debounceTimeout);
-        }
-
-        const timeout = setTimeout(() => {
-            handleUpdate(field, value);
-        }, 1000); // Increased to 1000ms delay after typing stops
-
-        setDebounceTimeout(timeout);
-    }, [debounceTimeout]);
-
-    // Cleanup timeout on unmount
+    // Add keyboard listeners
     useEffect(() => {
-        return () => {
-            if (debounceTimeout) {
-                clearTimeout(debounceTimeout);
+        const keyboardDidHideListener = Keyboard.addListener(
+            'keyboardDidHide',
+            () => {
+                if (editingField && (editingField === 'name' || editingField === 'description') &&
+                    tempValue !== (document?.[editingField] || '')) {
+                    handleUpdate(editingField, tempValue);
+                }
             }
+        );
+
+        return () => {
+            keyboardDidHideListener.remove();
         };
-    }, [debounceTimeout]);
+    }, [editingField, tempValue, document]);
+
+    // Handle text changes for name and description
+    const handleTextChange = (field: 'name' | 'description', text: string) => {
+        setTempValue(text);
+    };
+
+    // Handle expiry date change
+    const handleExpiryDateChange = (date: Date) => {
+        if (!date) return;
+        handleUpdate('expiryDate', date);
+        setShowDatePicker(false);
+    };
 
     if (!document) {
         return (
@@ -619,10 +624,7 @@ const DocumentDetailsScreen: React.FC = () => {
                             {editingField === 'name' ? (
                                 <TextInput
                                     value={tempValue}
-                                    onChangeText={(text) => {
-                                        setTempValue(text);
-                                        debouncedUpdate('name', text);
-                                    }}
+                                    onChangeText={(text) => handleTextChange('name', text)}
                                     autoFocus
                                     style={styles.documentName}
                                     disabled={isUpdating}
@@ -643,10 +645,7 @@ const DocumentDetailsScreen: React.FC = () => {
                             {editingField === 'description' ? (
                                 <TextInput
                                     value={tempValue}
-                                    onChangeText={(text) => {
-                                        setTempValue(text);
-                                        debouncedUpdate('description', text);
-                                    }}
+                                    onChangeText={(text) => handleTextChange('description', text)}
                                     autoFocus
                                     multiline
                                     style={styles.documentDescription}
@@ -744,8 +743,7 @@ const DocumentDetailsScreen: React.FC = () => {
                                     return;
                                 }
 
-                                handleUpdate('expiryDate', selectedDate);
-                                setShowDatePicker(false);
+                                handleExpiryDateChange(selectedDate);
                             } catch (error) {
                                 console.error('Error processing date:', error);
                                 Alert.alert('Error', 'Invalid date selection');
