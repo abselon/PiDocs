@@ -7,13 +7,17 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abselon.PiDocs"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,6 +28,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-local-authentication"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f9899689-19c9-4e33-a96b-14df316acfed"
+      }
+    },
+    "owner": "abselon"
   }
 }

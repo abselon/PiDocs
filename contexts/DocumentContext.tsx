@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Document, Category, DocumentWithStatus } from '../types/document';
 import { useUser } from './UserContext';
-import { Timestamp } from 'firebase/firestore';
+import { useStorage } from './StorageContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type DocumentStatus = 'active' | 'expiring' | 'expired';
 
@@ -39,6 +40,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { user } = useUser();
+    const { storageMode } = useStorage();
 
     const calculateStatus = (expiryDate?: Date | Timestamp): DocumentStatus => {
         if (!expiryDate) return 'active';
@@ -52,12 +54,47 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return 'active';
     };
 
+    const loadOfflineData = async () => {
+        try {
+            const storedDocs = await AsyncStorage.getItem('offline_documents');
+            const storedCats = await AsyncStorage.getItem('offline_categories');
+
+            if (storedDocs) {
+                const parsedDocs = JSON.parse(storedDocs);
+                setDocuments(parsedDocs.map((doc: Document) => ({
+                    ...doc,
+                    status: calculateStatus(doc.expiryDate ? (doc.expiryDate instanceof Timestamp ? doc.expiryDate.toDate() : new Date(doc.expiryDate)) : undefined)
+                })));
+            }
+
+            if (storedCats) {
+                setCategories(JSON.parse(storedCats));
+            }
+        } catch (error) {
+            console.error('Error loading offline data:', error);
+        }
+    };
+
+    const saveOfflineData = async (docs: DocumentWithStatus[], cats: Category[]) => {
+        try {
+            await AsyncStorage.setItem('offline_documents', JSON.stringify(docs));
+            await AsyncStorage.setItem('offline_categories', JSON.stringify(cats));
+        } catch (error) {
+            console.error('Error saving offline data:', error);
+        }
+    };
+
     const refreshDocuments = async () => {
         if (!user) return;
 
         try {
             setLoading(true);
             setError(null);
+
+            if (storageMode === 'offline') {
+                await loadOfflineData();
+                return;
+            }
 
             const q = query(
                 collection(db, 'documents'),
@@ -74,17 +111,21 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 };
             });
 
-            // Sort documents by createdAt in memory
             docs.sort((a, b) => {
                 const timeA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
                 const timeB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
-                return timeB - timeA; // Sort in descending order (newest first)
+                return timeB - timeA;
             });
 
             setDocuments(docs);
+            await saveOfflineData(docs, categories);
         } catch (err) {
-            setError('Failed to fetch documents');
-            console.error(err);
+            if (storageMode === 'offline') {
+                await loadOfflineData();
+            } else {
+                setError('Failed to fetch documents');
+                console.error(err);
+            }
         } finally {
             setLoading(false);
         }
@@ -97,6 +138,11 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setLoading(true);
             setError(null);
 
+            if (storageMode === 'offline') {
+                await loadOfflineData();
+                return;
+            }
+
             const q = query(
                 collection(db, 'categories'),
                 where('userId', '==', user.uid)
@@ -108,7 +154,6 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 id: doc.id
             }));
 
-            // If no categories exist, create default categories
             if (cats.length === 0) {
                 const defaultCategories = [
                     { name: 'Passport', icon: 'passport' },
@@ -130,128 +175,141 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     });
                 }
 
-                // Refresh categories after creating defaults
                 return refreshCategories();
             }
 
             setCategories(cats);
+            await saveOfflineData(documents, cats);
         } catch (err) {
-            setError('Failed to fetch categories');
-            console.error(err);
+            if (storageMode === 'offline') {
+                await loadOfflineData();
+            } else {
+                setError('Failed to fetch categories');
+                console.error(err);
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const addDocument = async (document: Omit<Document, 'id'>): Promise<string> => {
-        if (!user) {
-            console.error('User not authenticated in addDocument');
-            throw new Error('User not authenticated');
-        }
+    const addDocument = async (document: Omit<Document, 'id'>) => {
+        if (!user) throw new Error('No user logged in');
 
         try {
-            console.log('DocumentContext: Starting document addition...');
-            setLoading(true);
-            setError(null);
-
-            console.log('DocumentContext: User ID:', user.uid);
-
-            // Add document to Firestore
-            console.log('DocumentContext: Creating document in Firestore...');
-            const docRef = await addDoc(collection(db, 'documents'), {
-                ...document,
-                userId: user.uid,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now()
-            });
-            console.log('DocumentContext: Document created with ID:', docRef.id);
-
-            // Refresh documents list
-            console.log('DocumentContext: Refreshing documents list...');
-            await refreshDocuments();
-            console.log('DocumentContext: Documents list refreshed');
-
-            return docRef.id;
-        } catch (err) {
-            console.error('DocumentContext: Error adding document:', err);
-            setError('Failed to add document');
-            throw err;
-        } finally {
-            setLoading(false);
+            if (storageMode === 'online') {
+                const docRef = await addDoc(collection(db, 'documents'), {
+                    ...document,
+                    userId: user.uid,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now()
+                });
+                await refreshDocuments();
+                return docRef.id;
+            } else {
+                const newDoc: DocumentWithStatus = {
+                    ...document,
+                    id: Date.now().toString(),
+                    userId: user.uid,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                    status: calculateStatus(document.expiryDate)
+                };
+                const updatedDocs = [...documents, newDoc];
+                setDocuments(updatedDocs);
+                await saveOfflineData(updatedDocs, categories);
+                return newDoc.id;
+            }
+        } catch (error) {
+            console.error('Error adding document:', error);
+            throw error;
         }
     };
 
     const updateDocument = async (id: string, document: Partial<Document>) => {
-        if (!user) throw new Error('User not authenticated');
+        if (!user) throw new Error('No user logged in');
 
         try {
-            setLoading(true);
-            setError(null);
-
-            await updateDoc(doc(db, 'documents', id), {
-                ...document,
-                updatedAt: new Date()
-            });
-
-            await refreshDocuments();
-        } catch (err) {
-            setError('Failed to update document');
-            console.error(err);
-            throw err;
-        } finally {
-            setLoading(false);
+            if (storageMode === 'online') {
+                await updateDoc(doc(db, 'documents', id), {
+                    ...document,
+                    updatedAt: Timestamp.now()
+                });
+                await refreshDocuments();
+            } else {
+                const updatedDocs = documents.map(doc =>
+                    doc.id === id
+                        ? {
+                            ...doc,
+                            ...document,
+                            updatedAt: Timestamp.now(),
+                            status: calculateStatus(document.expiryDate || doc.expiryDate)
+                        }
+                        : doc
+                );
+                setDocuments(updatedDocs);
+                await saveOfflineData(updatedDocs, categories);
+            }
+        } catch (error) {
+            console.error('Error updating document:', error);
+            throw error;
         }
     };
 
     const deleteDocument = async (id: string) => {
-        if (!user) throw new Error('User not authenticated');
+        if (!user) throw new Error('No user logged in');
 
         try {
-            setLoading(true);
-            setError(null);
-
-            await deleteDoc(doc(db, 'documents', id));
-            await refreshDocuments();
-        } catch (err) {
-            setError('Failed to delete document');
-            console.error(err);
-            throw err;
-        } finally {
-            setLoading(false);
+            if (storageMode === 'online') {
+                await deleteDoc(doc(db, 'documents', id));
+                await refreshDocuments();
+            } else {
+                const updatedDocs = documents.filter(doc => doc.id !== id);
+                setDocuments(updatedDocs);
+                await saveOfflineData(updatedDocs, categories);
+            }
+        } catch (error) {
+            console.error('Error deleting document:', error);
+            throw error;
         }
     };
 
-    const addCategory = async (category: Omit<Category, 'id'>): Promise<string> => {
-        if (!user) throw new Error('User not authenticated');
+    const addCategory = async (category: Omit<Category, 'id'>) => {
+        if (!user) throw new Error('No user logged in');
 
         try {
-            setLoading(true);
-            setError(null);
-
-            const docRef = await addDoc(collection(db, 'categories'), {
-                ...category,
-                userId: user.uid,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now()
-            });
-
-            await refreshCategories();
-            return docRef.id;
-        } catch (err) {
-            setError('Failed to add category');
-            console.error(err);
-            throw err;
-        } finally {
-            setLoading(false);
+            if (storageMode === 'online') {
+                const catRef = await addDoc(collection(db, 'categories'), {
+                    ...category,
+                    userId: user.uid,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now()
+                });
+                await refreshCategories();
+                return catRef.id;
+            } else {
+                const newCat: Category = {
+                    ...category,
+                    id: Date.now().toString(),
+                    userId: user.uid,
+                    createdAt: Timestamp.now(),
+                    updatedAt: Timestamp.now()
+                };
+                const updatedCats = [...categories, newCat];
+                setCategories(updatedCats);
+                await saveOfflineData(documents, updatedCats);
+                return newCat.id;
+            }
+        } catch (error) {
+            console.error('Error adding category:', error);
+            throw error;
         }
     };
 
+    // Load initial data
     useEffect(() => {
-        if (user) {
-            refreshDocuments();
-            refreshCategories();
-        }
-    }, [user]);
+        refreshDocuments();
+        refreshCategories();
+    }, [user, storageMode]);
 
     return (
         <DocumentContext.Provider value={{
